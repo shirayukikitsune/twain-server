@@ -3,6 +3,10 @@
 #include <boost/dll.hpp>
 #include <boost/function.hpp>
 
+#if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
+#include <Windows.h>
+#endif
+
 #include "external/twain.h"
 
 namespace dasa::gliese::scanner {
@@ -15,6 +19,7 @@ namespace dasa::gliese::scanner {
         void loadDSM(const char *path);
         void openDSM();
         void closeDSM();
+        bool isReady() { return isOpen; }
 
         pTW_IDENTITY getIdentity() {
             return &identity;

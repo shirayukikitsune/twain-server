@@ -5,26 +5,44 @@
 
 extern dasa::gliese::scanner::Application *application;
 
+web::json::value deviceToJson(TW_IDENTITY device) {
+    auto deviceJson = web::json::value::object();
+    deviceJson[U("id")] = web::json::value((uint32_t)device.Id);
+    deviceJson[U("productName")] = web::json::value(utility::conversions::to_string_t(device.ProductName));
+    deviceJson[U("manufacturer")] = web::json::value(utility::conversions::to_string_t(device.Manufacturer));
+    deviceJson[U("productFamily")] = web::json::value(utility::conversions::to_string_t(device.ProductFamily));
+    return deviceJson;
+}
+
 int main(int argc, char **argv) {
     loguru::init(argc, argv, "-v");
 
     auto listener = std::make_shared<dasa::gliese::scanner::http::Listener>();
 
-    std::map<std::string, dasa::gliese::scanner::http::Listener::handler_t> routes;
-
-    routes["/status"] = [](h2o_handler_t *self, h2o_req_t *req) -> int {
-        if (h2o_memis(req->method.base, req->method.len, H2O_STRLIT("GET"))) {
-            req->res.status = 200;
-            req->res.reason = "OK";
-            h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CONTENT_TYPE, nullptr, H2O_STRLIT("application/json"));
-            h2o_send_inline(req, H2O_STRLIT("{\"status\":\"UP\"}"));
-            return 0;
+    listener->get(U("/status"), [](const web::http::http_request& request) {
+        auto response = web::json::value::object();
+        response[U("status")] = web::json::value(U("UP"));
+        auto details = web::json::value::object();
+        details[U("twain")] = web::json::value(application->getTwain().isReady() ? U("UP") : U("DOWN"));
+        response[U("details")] = web::json::value(details);
+        request.reply(web::http::status_codes::OK, response);
+    });
+    listener->get(U("/devices"), [](const web::http::http_request& request) {
+        auto response = web::json::value::array();
+        auto devices = application->getTwain().listSources();
+        auto defaultDevice = application->getTwain().getDefaultDataSource();
+        size_t i = 0;
+        for (auto & device : devices) {
+            auto deviceJson = deviceToJson(device);
+            if (defaultDevice.Id == device.Id) {
+                deviceJson[U("default")] = web::json::value(true);
+            }
+            response[i++] = deviceJson;
         }
+        request.reply(web::http::status_codes::OK, response);
+    });
 
-        return -1;
-    };
-
-    listener->initialize(routes, "127.0.0.1", 43456);
+    listener->initialize(U("http://127.0.0.1:43456"));
 
     LOG_F(INFO, "Opening HTTP listener on 127.0.0.1:43456");
 

@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <list>
+#include <loguru.hpp>
 
 using dasa::gliese::scanner::Twain;
 using namespace dasa::gliese::scanner::exception;
@@ -29,8 +30,13 @@ void Twain::fillIdentity() {
 }
 
 void Twain::loadDSM(const char *path) {
-    DSM.load(path);
-    entry = DSM.get<TW_UINT16(pTW_IDENTITY, pTW_IDENTITY, TW_UINT32, TW_UINT16, TW_UINT16, TW_MEMREF)>("DSM_Entry");
+    try {
+        DSM.load(path);
+        entry = DSM.get<TW_UINT16(pTW_IDENTITY, pTW_IDENTITY, TW_UINT32, TW_UINT16, TW_UINT16, TW_MEMREF)>("DSM_Entry");
+    }
+    catch (std::exception e) {
+        ABORT_S() << "Failed to open TWAIN library: " << e.what();
+    }
 }
 
 void Twain::openDSM() {
