@@ -1,8 +1,18 @@
-add_executable(gliese-scanner main.cpp external/twain.h application.hpp twain.cpp twain.hpp exception/dsm_exception.hpp http/listener.cpp http/listener.hpp exception/http_exception.hpp)
+add_executable(gliese-scanner
+        external/twain.h
+        application.cpp application.hpp
+        twain.cpp twain.hpp
+        exception/dsm_exception.hpp
+        exception/http_exception.hpp
+        http/listener.cpp http/listener.hpp
+        http/handler/devices.cpp
+        http/handler/handlers.cpp http/handler/handlers.hpp
+        http/handler/status.cpp
+        twain/transfer.hpp twain/memory_transfer.cpp twain/memory_transfer.hpp)
 
 if (MSVC OR MSYS OR MINGW)
     target_sources(gliese-scanner PUBLIC application_windows.cpp application_windows.hpp)
-elseif(APPLE)
+# elseif(APPLE)
 else()
     target_sources(gliese-scanner PUBLIC application_linux.cpp application_linux.hpp)
 endif()

@@ -32,16 +32,36 @@ void Listener::listen() {
     }
 }
 
-#define ADD_ROUTE2(fn, method) void fn (const utility::string_t & path, requesthandler_t handler) { method ## Router.add_handler(path, handler); }
-#define ADD_ROUTE(method) ADD_ROUTE2(Listener::##method, method)
-
-ADD_ROUTE(get)
-ADD_ROUTE(post)
-ADD_ROUTE(put)
-ADD_ROUTE(del)
-ADD_ROUTE(head)
-ADD_ROUTE(options)
-ADD_ROUTE(trace)
-ADD_ROUTE(merge)
-ADD_ROUTE(connect)
-ADD_ROUTE(patch)
+void Listener::add_handler(std::unique_ptr<RouteHandler> && handler) {
+    auto method = handler->method();
+    if (method == web::http::methods::GET) {
+        getRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::POST) {
+        postRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::PUT) {
+        putRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::DEL) {
+        delRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::HEAD) {
+        headRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::OPTIONS) {
+        optionsRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::TRCE) {
+        traceRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::MERGE) {
+        mergeRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::CONNECT) {
+        connectRouter.add_handler(std::move(handler));
+    }
+    else if (method == web::http::methods::PATCH) {
+        patchRouter.add_handler(std::move(handler));
+    }
+}

@@ -2,33 +2,41 @@
 
 #include "cpprest/http_listener.h"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace dasa::gliese::scanner::http {
-    typedef void(*requesthandler_t)(const web::http::http_request&);
+    class RouteHandler {
+    public:
+        [[nodiscard]] virtual web::http::method method() const = 0;
+        [[nodiscard]] virtual utility::string_t route() const = 0;
+
+        virtual void operator()(const web::http::http_request& request) = 0;
+    };
 
     class Router {
     public:
-        Router(web::http::method method) : method(method) {}
+        explicit Router(web::http::method method) : method(std::move(method)) {}
 
-        void add_handler(utility::string_t path, requesthandler_t handler) {
-            handlers[path] = handler;
+        void add_handler(std::unique_ptr<RouteHandler> && handler) {
+            handlers[handler->route()] = std::move(handler);
         }
 
-        void handle_request(web::http::http_request request) {
+        void handle_request(const web::http::http_request& request) {
             auto handler = handlers.find(request.relative_uri().path());
             if (handler == handlers.end()) {
                 request.reply(web::http::status_codes::NotFound, "not found");
                 return;
             }
 
-            handler->second(request);
+            (*handler->second)(request);
         }
 
     private:
-        std::map<utility::string_t, requesthandler_t> handlers;
+        std::map<utility::string_t, std::unique_ptr<RouteHandler>> handlers;
         web::http::method method;
     };
 
@@ -37,16 +45,7 @@ namespace dasa::gliese::scanner::http {
 
         void initialize(const utility::char_t *address);
 
-        void get(const utility::string_t &path, requesthandler_t handler);
-        void post(const utility::string_t &path, requesthandler_t handler);
-        void put(const utility::string_t &path, requesthandler_t handler);
-        void del(const utility::string_t &path, requesthandler_t handler);
-        void head(const utility::string_t &path, requesthandler_t handler);
-        void options(const utility::string_t &path, requesthandler_t handler);
-        void trace(const utility::string_t &path, requesthandler_t handler);
-        void merge(const utility::string_t &path, requesthandler_t handler);
-        void connect(const utility::string_t &path, requesthandler_t handler);
-        void patch(const utility::string_t &path, requesthandler_t handler);
+        void add_handler(std::unique_ptr<RouteHandler> && handler);
 
         void listen();
 
@@ -58,7 +57,7 @@ namespace dasa::gliese::scanner::http {
         std::unique_ptr<web::http::experimental::listener::http_listener> listener;
         bool shouldRun = true;
 
-#define DECLARE_ROUTER(a, b) Router a##Router = Router(web::http::methods::##b)
+#define DECLARE_ROUTER(a, b) Router a##Router = Router(web::http::methods::b)
 
         DECLARE_ROUTER(get, GET);
         DECLARE_ROUTER(post, POST);
