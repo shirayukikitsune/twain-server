@@ -1,5 +1,6 @@
 #include <loguru.hpp>
 #include "memory_transfer.hpp"
+#include <cpprest/rawptrstream.h>
 
 using namespace dasa::gliese::scanner::twain;
 
@@ -61,7 +62,9 @@ void MemoryTransfer::transfer() {
                 scanStarted = true;
             }
 
-            os.write(reinterpret_cast<char *>(memXferBuffer.Memory.TheMem), memXferBuffer.Memory.Length);
+            concurrency::streams::rawptr_buffer rawBuf(reinterpret_cast<char *>(memXferBuffer.Memory.TheMem), memXferBuffer.Memory.Length);
+            os.write(rawBuf, memXferBuffer.Memory.Length);
+            os.flush();
 
             if (rc == TWRC_XFERDONE) {
                 break;

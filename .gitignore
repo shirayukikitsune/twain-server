@@ -1,4 +1,4 @@
 /.vs
 /.vscode
 /build
-/cmake-build-debug
+/cmake-*

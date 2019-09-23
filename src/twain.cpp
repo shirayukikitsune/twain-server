@@ -2,6 +2,7 @@
 #include "twain.hpp"
 
 #include "exception/dsm_exception.hpp"
+#include "twain/memory_transfer.hpp"
 #include "application.hpp"
 
 #include <cstring>
@@ -98,7 +99,8 @@ std::list<TW_IDENTITY> Twain::listSources() {
 
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
-    if (entry(&identity, 0, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, (TW_MEMREF)&current) != TWRC_SUCCESS) {
+    auto rc = entry(&identity, 0, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, (TW_MEMREF)&current);
+    if (rc != TWRC_SUCCESS) {
         return sources;
     }
 
@@ -139,7 +141,7 @@ TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
     return twStatus;
 }
 
-static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY dest, TW_UINT32 dg, TW_UINT16 dat, TW_UINT16 message, TW_MEMREF data) {
+static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT32 /*dg*/, TW_UINT16 /*dat*/, TW_UINT16 message, TW_MEMREF /*data*/) {
     auto& twain = application->getTwain();
     if (origin == nullptr || origin->Id != twain.getDataSouce()->Id) {
         return TWRC_FAILURE;
@@ -161,14 +163,14 @@ static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY dest, TW_UINT32 d
     return TWRC_SUCCESS;
 }
 
-void Twain::loadDataSource(TW_UINT32 id) {
+bool Twain::loadDataSource(TW_UINT32 id) {
     if (state < 3) {
         LOG_S(ERROR) << "Trying to load DS when DSM is not active";
-        return;
+        return false;
     }
     if (state > 3) {
         LOG_S(WARNING) << "A source is already open";
-        return;
+        return false;
     }
 
     currentDS.reset(nullptr);
@@ -183,6 +185,7 @@ void Twain::loadDataSource(TW_UINT32 id) {
 
     if (!currentDS) {
         LOG_S(ERROR) << "Could not find DS with id " << id;
+        return false;
     }
 
     TW_CALLBACK callback;
@@ -196,7 +199,7 @@ void Twain::loadDataSource(TW_UINT32 id) {
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to open DataSource";
         currentDS.reset(nullptr);
-        return;
+        return false;
     }
 
     state = 4;
@@ -206,6 +209,7 @@ void Twain::loadDataSource(TW_UINT32 id) {
         resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
         if (resultCode != TWRC_SUCCESS) {
             LOG_S(ERROR) << "Failed to register callback: " << resultCode;
+            return false;
         } else {
             useCallbacks = true;
         }
@@ -216,16 +220,19 @@ void Twain::loadDataSource(TW_UINT32 id) {
     resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to register callback: " << resultCode;
+        return false;
     } else {
         useCallbacks = true;
     }
 #endif
+
+    return true;
 }
 
-void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
+bool Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
     if (state < 4) {
         LOG_S(ERROR) << "Trying to enable DS but it was not opened";
-        return;
+        return false;
     }
 
     ui.ShowUI = showUI;
@@ -235,10 +242,30 @@ void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
     auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, &ui);
     if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
         LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
-        return;
+        return false;
     }
 
     state = 5;
+    return true;
+}
+
+bool Twain::closeDS() {
+    if (state < 4) {
+        LOG_S(ERROR) << "Trying to close DS but it was not opened";
+        return false;
+    }
+
+    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, currentDS.get());
+
+    if (resultCode != TWRC_SUCCESS) {
+        LOG_S(ERROR) << "Failed to close DS";
+        return false;
+    }
+
+    state = 3;
+    LOG_S(INFO) << "DS closed";
+    currentDS = nullptr;
+    return true;
 }
 
 TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) {
@@ -260,6 +287,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
         case TWTY_INT8:
             *(TW_INT8*)&pValue->Item = (TW_INT8)value;
             break;
+
         case TWTY_INT16:
             *(TW_INT16*)&pValue->Item = (TW_INT16)value;
             break;
@@ -283,6 +311,9 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
         case TWTY_BOOL:
             memcpy(&pValue->Item,&value,sizeof(TW_BOOL));
             break;
+
+        default:
+            goto finishing;
     }
 
     returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, &cap);
@@ -290,13 +321,14 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
         LOG_S(ERROR) << "Failed to set capability";
     }
 
+finishing:
     DSM_UnlockMemory(cap.hContainer);
     DSM_Free(cap.hContainer);
 
     return returnCode;
 }
 
-void Twain::startScan() {
+void Twain::startScan(concurrency::streams::ostream &os) {
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
         return;
@@ -322,7 +354,8 @@ void Twain::startScan() {
         return;
     }
 
-
+    auto transfer = std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, os);
+    transfer->transfer();
 }
 
 TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
@@ -335,8 +368,6 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
         LOG_S(ERROR) << "You need to open a data source first.";
         return TWRC_FAILURE;
     }
-
-    TW_INT16 CondCode = TWCC_SUCCESS;
 
     // Check if this capability structure has memory already alloc'd.
     // If it does, free that memory before the call else we'll have a memory

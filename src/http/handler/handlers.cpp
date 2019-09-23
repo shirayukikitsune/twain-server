@@ -1,6 +1,7 @@
 #include "handlers.hpp"
 
 #include "devices.cpp"
+#include "scan.cpp"
 #include "status.cpp"
 
 #include <vector>
@@ -12,6 +13,7 @@ std::vector<std::unique_ptr<RouteHandler>> handlers;
 void create_handlers() {
     handlers.clear();
     handlers.emplace_back(std::make_unique<StatusHandler>());
+    handlers.emplace_back(std::make_unique<ScanHandler>());
     handlers.emplace_back(std::make_unique<DevicesHandler>());
 }
 

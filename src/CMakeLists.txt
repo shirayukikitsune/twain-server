@@ -7,8 +7,10 @@ add_executable(gliese-scanner
         http/listener.cpp http/listener.hpp
         http/handler/devices.cpp
         http/handler/handlers.cpp http/handler/handlers.hpp
+        http/handler/scan.cpp
         http/handler/status.cpp
-        twain/transfer.hpp twain/memory_transfer.cpp twain/memory_transfer.hpp)
+        twain/transfer.hpp
+        twain/memory_transfer.cpp twain/memory_transfer.hpp)
 
 if (MSVC OR MSYS OR MINGW)
     target_sources(gliese-scanner PUBLIC application_windows.cpp application_windows.hpp)

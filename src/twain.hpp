@@ -3,6 +3,7 @@
 #include <boost/dll.hpp>
 #include <boost/function.hpp>
 #include <cpprest/json.h>
+#include <cpprest/streams.h>
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
 #include <Windows.h>
@@ -34,13 +35,14 @@ namespace dasa::gliese::scanner {
 
         TW_STATUSUTF8 getStatus(TW_UINT16 rc);
 
-        void loadDataSource(TW_UINT32 id);
-        void enableDataSource(TW_HANDLE handle, bool showUI);
+        bool loadDataSource(TW_UINT32 id);
+        bool enableDataSource(TW_HANDLE handle, bool showUI);
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
+        bool closeDS();
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
 
-        void startScan();
+        void startScan(concurrency::streams::ostream &os);
 
         TW_HANDLE DSM_MemAllocate(TW_UINT32 size);
         void DSM_Free(TW_HANDLE memory);
