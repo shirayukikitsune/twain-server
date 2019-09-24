@@ -2,8 +2,7 @@
 
 #include <boost/dll.hpp>
 #include <boost/function.hpp>
-#include <cpprest/json.h>
-#include <cpprest/streams.h>
+#include <nlohmann/json.hpp>
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
 #include <Windows.h>
@@ -42,7 +41,7 @@ namespace dasa::gliese::scanner {
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
 
-        void startScan(concurrency::streams::ostream &os);
+        void startScan(std::ostream &os);
 
         TW_HANDLE DSM_MemAllocate(TW_UINT32 size);
         void DSM_Free(TW_HANDLE memory);
@@ -68,4 +67,4 @@ namespace dasa::gliese::scanner {
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity);
-web::json::value deviceToJson(TW_IDENTITY device);
+nlohmann::json deviceToJson(TW_IDENTITY device);

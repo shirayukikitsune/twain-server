@@ -1,8 +1,9 @@
 #include "application.hpp"
 
+#include "http/listener.hpp"
 #include "http/handler/handlers.hpp"
 
-using dasa::gliese::scanner::Application;
+using namespace dasa::gliese::scanner;
 
 void Application::initialize(std::shared_ptr<http::Listener> httpListener) {
     this->listener = std::move(httpListener);

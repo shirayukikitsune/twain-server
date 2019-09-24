@@ -4,4 +4,7 @@ if (NOT (MSVC OR MSYS OR MINGW))
 endif()
 target_compile_definitions(loguru PUBLIC LOGURU_WITH_STREAMS=1)
 
-add_subdirectory(cpprestsdk)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+set(JSON_Install OFF CACHE INTERNAL "")
+
+add_subdirectory(json)

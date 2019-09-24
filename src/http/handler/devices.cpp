@@ -3,27 +3,38 @@
 
 extern dasa::gliese::scanner::Application *application;
 
-class DevicesHandler : public dasa::gliese::scanner::http::RouteHandler {
-    [[nodiscard]] web::http::method method() const final {
-        return web::http::methods::GET;
+using nlohmann::json;
+using dasa::gliese::scanner::http::handler::RouteHandler;
+namespace http = boost::beast::http;
+
+class DevicesHandler : public RouteHandler {
+    [[nodiscard]] http::verb method() const final {
+        return http::verb::get;
     }
 
-    [[nodiscard]] utility::string_t route() const final {
-        return U("/devices");
+    [[nodiscard]] boost::beast::string_view route() const final {
+        return "/devices";
     }
 
-    void operator()(const web::http::http_request& request) final {
-        auto response = web::json::value::array();
+	http::response<http::string_body> operator()(http::request<http::string_body>&& request) final {
+		json response;
         auto devices = application->getTwain().listSources();
         auto defaultDevice = application->getTwain().getDefaultDataSource();
         size_t i = 0;
         for (auto & device : devices) {
             auto deviceJson = deviceToJson(device);
             if (defaultDevice.Id == device.Id) {
-                deviceJson[U("default")] = web::json::value(true);
+                deviceJson["default"] = true;
             }
             response[i++] = deviceJson;
         }
-        request.reply(web::http::status_codes::OK, response);
+        
+		http::response<http::string_body> res{ http::status::ok, request.version() };
+		res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+		res.set(http::field::content_type, "application/json");
+		res.keep_alive(request.keep_alive());
+		res.body() = response.dump();
+		res.prepare_payload();
+		return res;
     }
 };

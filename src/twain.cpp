@@ -328,7 +328,7 @@ finishing:
     return returnCode;
 }
 
-void Twain::startScan(concurrency::streams::ostream &os) {
+void Twain::startScan(std::ostream &os) {
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
         return;
@@ -460,21 +460,21 @@ TW_HANDLE Twain::DSM_MemAllocate(TW_UINT32 size) {
     }
 
 #ifdef TWH_CMP_MSC
-    return ::GlobalAlloc(GPTR, _size);
+    return ::GlobalAlloc(GPTR, size);
 #else
     return nullptr;
 #endif
 }
 
-void Twain::DSM_Free(TW_HANDLE _hMemory)
+void Twain::DSM_Free(TW_HANDLE memory)
 {
     if(entrypoint.DSM_MemFree)
     {
-        return entrypoint.DSM_MemFree(_hMemory);
+        return entrypoint.DSM_MemFree(memory);
     }
 
 #ifdef TWH_CMP_MSC
-    ::GlobalFree(_hMemory);
+    ::GlobalFree(memory);
 #endif
 }
 
@@ -485,31 +485,22 @@ TW_MEMREF Twain::DSM_LockMemory(TW_HANDLE memory) {
     }
 
 #ifdef TWH_CMP_MSC
-    return (TW_MEMREF)::GlobalLock(_hMemory);
+    return (TW_MEMREF)::GlobalLock(memory);
 #else
     return nullptr;
 #endif
 }
 
-void Twain::DSM_UnlockMemory(TW_HANDLE _hMemory)
+void Twain::DSM_UnlockMemory(TW_HANDLE memory)
 {
     if(entrypoint.DSM_MemUnlock)
     {
-        return entrypoint.DSM_MemUnlock(_hMemory);
+        return entrypoint.DSM_MemUnlock(memory);
     }
 
 #ifdef TWH_CMP_MSC
-    ::GlobalUnlock(_hMemory);
+    ::GlobalUnlock(memory);
 #endif
-}
-
-web::json::value deviceToJson(TW_IDENTITY device) {
-    auto deviceJson = web::json::value::object();
-    deviceJson[U("id")] = web::json::value((uint32_t)device.Id);
-    deviceJson[U("productName")] = web::json::value(utility::conversions::to_string_t(device.ProductName));
-    deviceJson[U("manufacturer")] = web::json::value(utility::conversions::to_string_t(device.Manufacturer));
-    deviceJson[U("productFamily")] = web::json::value(utility::conversions::to_string_t(device.ProductFamily));
-    return deviceJson;
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
@@ -520,4 +511,13 @@ std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
         os << " has no data";
     }
     return os;
+}
+
+nlohmann::json deviceToJson(TW_IDENTITY device) {
+	nlohmann::json deviceJson;
+	deviceJson["id"] = device.Id;
+	deviceJson["productName"] = device.ProductName;
+	deviceJson["manufacturer"] = device.Manufacturer;
+	deviceJson["productFamily"] = device.ProductFamily;
+	return deviceJson;
 }

@@ -1,6 +1,5 @@
 #include "handlers.hpp"
 #include "../../application.hpp"
-#include "cpprest/producerconsumerstream.h"
 #include <chrono>
 #include <thread>
 
@@ -57,7 +56,7 @@ public:
 private:
     static web::json::value makeErrorResponse(utility::string_t message) {
         web::json::value responseObject = web::json::value::object();
-        responseObject["error"] = web::json::value::string(std::move(message));
+        responseObject[U("error")] = web::json::value::string(std::move(message));
 
         return responseObject;
     }

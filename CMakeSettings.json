@@ -1,0 +1,47 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "Boost_INCLUDE_DIR",
+          "value": "C:/local/boost_1_71_0",
+          "type": "PATH"
+        },
+        {
+          "name": "CPPREST_EXCLUDE_WEBSOCKETS",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_SAMPLES",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "ZLIB_ROOT",
+          "value": "C:/local/zlib_1_2_11/x64",
+          "type": "PATH"
+        },
+        {
+          "name": "ZLIB_LIBRARY",
+          "value": "C:/local/zlib_1_2_11/x64/lib/zlibstat.lib",
+          "type": "STRING"
+        },
+        {
+          "name": "BUILD_TESTS",
+          "value": "False",
+          "type": "BOOL"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "cpprest/http_listener.h"
+#include "router.hpp"
+
+#include <boost/beast.hpp>
 
 #include <functional>
 #include <map>
@@ -9,37 +11,6 @@
 #include <utility>
 
 namespace dasa::gliese::scanner::http {
-    class RouteHandler {
-    public:
-        [[nodiscard]] virtual web::http::method method() const = 0;
-        [[nodiscard]] virtual utility::string_t route() const = 0;
-
-        virtual void operator()(const web::http::http_request& request) = 0;
-    };
-
-    class Router {
-    public:
-        explicit Router(web::http::method method) : method(std::move(method)) {}
-
-        void add_handler(std::unique_ptr<RouteHandler> && handler) {
-            handlers[handler->route()] = std::move(handler);
-        }
-
-        void handle_request(const web::http::http_request& request) {
-            auto handler = handlers.find(request.relative_uri().path());
-            if (handler == handlers.end()) {
-                request.reply(web::http::status_codes::NotFound, "not found");
-                return;
-            }
-
-            (*handler->second)(request);
-        }
-
-    private:
-        std::map<utility::string_t, std::unique_ptr<RouteHandler>> handlers;
-        web::http::method method;
-    };
-
     class Listener {
     public:
 

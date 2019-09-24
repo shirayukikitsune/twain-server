@@ -2,6 +2,8 @@
 
 #include "application.hpp"
 
+#include <Windows.h>
+
 namespace dasa::gliese::scanner::windows
 {
     class Application : public dasa::gliese::scanner::Application {

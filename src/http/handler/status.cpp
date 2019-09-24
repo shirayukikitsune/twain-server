@@ -1,26 +1,33 @@
-#include <cpprest/http_msg.h>
-#include "../../application.hpp"
 #include "handlers.hpp"
+#include "../../application.hpp"
 
 extern dasa::gliese::scanner::Application *application;
 
-class StatusHandler : public dasa::gliese::scanner::http::RouteHandler {
-    [[nodiscard]] web::http::method method() const final {
-        return web::http::methods::GET;
+using dasa::gliese::scanner::http::handler::RouteHandler;
+namespace http = boost::beast::http;
+
+class StatusHandler : public RouteHandler {
+    [[nodiscard]] http::verb method() const final {
+        return http::verb::get;
     }
 
-    [[nodiscard]] utility::string_t route() const final {
-        return U("/status");
+    [[nodiscard]] boost::beast::string_view route() const final {
+        return "/status";
     }
 
-    void operator()(const web::http::http_request& request) final {
-        auto response = web::json::value::object();
-        response[U("status")] = web::json::value(U("UP"));
+	http::response<http::string_body> operator()(http::request<http::string_body>&& request) final {
+        nlohmann::json response;
+        response["status"] = "UP";
+		response["details"] = {
+			{"twain", application->getTwain().getState()}
+		};
 
-        auto details = web::json::value::object();
-        details[U("twain")] = web::json::value(application->getTwain().getState());
-
-        response[U("details")] = web::json::value(details);
-        request.reply(web::http::status_codes::OK, response);
+		http::response<http::string_body> res{ http::status::ok, request.version() };
+		res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+		res.set(http::field::content_type, "application/json");
+		res.keep_alive(request.keep_alive());
+		res.body() = response.dump();
+		res.prepare_payload();
+		return res;
     }
 };

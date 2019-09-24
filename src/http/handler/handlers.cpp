@@ -8,6 +8,7 @@
 #include <memory>
 
 using namespace dasa::gliese::scanner::http;
+using handler::RouteHandler;
 std::vector<std::unique_ptr<RouteHandler>> handlers;
 
 void create_handlers() {

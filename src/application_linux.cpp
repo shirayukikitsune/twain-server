@@ -10,8 +10,8 @@ using dasa::gliese::scanner::linux::Application;
 dasa::gliese::scanner::linux::Application *linux_application;
 dasa::gliese::scanner::Application *application;
 
-extern "C" void trapSigterm(int signal) {
-    if (signal == SIGTERM) {
+extern "C" void trapStop(int signal) {
+    if (signal == SIGTERM || signal == SIGINT) {
         LOG_S(INFO) << "Received SIGTERM, closing application";
         linux_application->stop();
     }
@@ -22,8 +22,9 @@ void Application::initialize(std::shared_ptr<http::Listener> listener) {
     LOG_S(INFO) << "Initializing linux application";
     dasa::gliese::scanner::Application::initialize(listener);
 
-    LOG_S(INFO) << "Installing SIGTERM handler";
-    signal(SIGTERM, trapSigterm);
+    LOG_S(INFO) << "Installing SIGTERM and SIGINT handler";
+    signal(SIGTERM, trapStop);
+	signal(SIGINT, trapStop);
 
     LOG_S(INFO) << "Loading TWAIN DSM library";
     twain.loadDSM("/usr/local/lib/libtwaindsm.so");
