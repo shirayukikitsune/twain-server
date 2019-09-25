@@ -1,67 +1,116 @@
 #include "listener.hpp"
+#include "session.hpp"
 #include "../exception/http_exception.hpp"
 
+#include <boost/asio/strand.hpp>
+#include <boost/beast.hpp>
 #include <chrono>
 #include <thread>
 #include <loguru.hpp>
-#include <cpprest/uri.h>
 
 using namespace dasa::gliese::scanner::http;
 
-void Listener::initialize(const utility::char_t *address) {
-    LOG_S(INFO) << "Creating HTTP listener";
-    listener = std::make_unique<web::http::experimental::listener::http_listener>(web::http::uri(address));
-    LOG_S(INFO) << "Configuring routes";
-    listener->support(web::http::methods::GET, std::bind(&Router::handle_request, &getRouter, std::placeholders::_1));
-    listener->support(web::http::methods::POST, std::bind(&Router::handle_request, &postRouter, std::placeholders::_1));
-    listener->support(web::http::methods::PUT, std::bind(&Router::handle_request, &putRouter, std::placeholders::_1));
-    listener->support(web::http::methods::DEL, std::bind(&Router::handle_request, &delRouter, std::placeholders::_1));
-    listener->support(web::http::methods::HEAD, std::bind(&Router::handle_request, &headRouter, std::placeholders::_1));
-    listener->support(web::http::methods::OPTIONS, std::bind(&Router::handle_request, &optionsRouter, std::placeholders::_1));
-    listener->support(web::http::methods::TRCE, std::bind(&Router::handle_request, &traceRouter, std::placeholders::_1));
-    listener->support(web::http::methods::MERGE, std::bind(&Router::handle_request, &mergeRouter, std::placeholders::_1));
-    listener->support(web::http::methods::CONNECT, std::bind(&Router::handle_request, &connectRouter, std::placeholders::_1));
-    listener->support(web::http::methods::PATCH, std::bind(&Router::handle_request, &patchRouter, std::placeholders::_1));
-    LOG_S(INFO) << "Opening handler";
-    listener->open().wait();
+Listener::Listener(boost::beast::net::io_context &ioContext)
+    : ioContext(ioContext)
+    , acceptor(ioContext)
+    , socket(ioContext) {}
+
+void Listener::listen(const char *address, unsigned short port) {
+    auto const netAddress = boost::beast::net::ip::make_address(address);
+    boost::asio::ip::tcp::endpoint endpoint{ netAddress, port };
+
+    LOG_S(INFO) << "Creating TCP acceptor";
+
+    boost::beast::error_code ec;
+    acceptor.open(endpoint.protocol(), ec);
+    if (ec) {
+        ABORT_S() << "Failed to open TCP acceptor: " << ec.message();
+        return;
+    }
+
+    acceptor.set_option(boost::beast::net::socket_base::reuse_address(true), ec);
+    if (ec) {
+        ABORT_S() << "Failed to enable reuse address: " << ec.message();
+        return;
+    }
+
+    acceptor.bind(endpoint, ec);
+    if (ec) {
+        ABORT_S() << "Failed to bind to endpoint (" << endpoint.address().to_string() << ":" << endpoint.port() << "): " << ec.message();
+        return;
+    }
+
+    acceptor.listen(boost::beast::net::socket_base::max_listen_connections, ec);
+    if (ec) {
+        ABORT_S() << "Failed to listen: " << ec.message();
+        return;
+    }
+
+    LOG_S(INFO) << "TCP acceptor created";
 }
 
-void Listener::listen() {
-    while (shouldRun) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#define HANDLER_CASE(a, b) case boost::beast::http::verb::a : return &b##Router;
+#define HANDLER_CASE1(a) HANDLER_CASE(a, a)
+
+Router* Listener::getRouterForVerb(boost::beast::http::verb verb)
+{
+    switch (verb) {
+        HANDLER_CASE1(get)
+        HANDLER_CASE1(post)
+        HANDLER_CASE1(put)
+        HANDLER_CASE(delete_, del)
+        HANDLER_CASE1(head)
+        HANDLER_CASE1(options)
+        HANDLER_CASE1(trace)
+        HANDLER_CASE1(merge)
+        HANDLER_CASE1(connect)
+        HANDLER_CASE1(patch)
+    }
+    return nullptr;
+}
+
+#undef HANDLER_CASE1
+#undef HANDLER_CASE
+
+#include <boost/asio/yield.hpp>
+
+void Listener::loop(boost::beast::error_code ec) {
+    reenter(*this) {
+        for (;;) {
+            yield acceptor.async_accept(socket, boost::beast::bind_front_handler(&Listener::loop, shared_from_this()));
+
+            if (ec) {
+                LOG_S(ERROR) << "Failed to accept incoming connection: " << ec.message();
+            }
+            else {
+                std::make_shared<dasa::gliese::scanner::http::Session>(std::move(socket), shared_from_this())->run();
+            }
+
+            socket = boost::asio::ip::tcp::socket(boost::asio::make_strand(ioContext));
+        }
     }
 }
 
-void Listener::add_handler(std::unique_ptr<RouteHandler> && handler) {
+#include <boost/asio/unyield.hpp>
+
+#define HANDLER_CASE(a, b) case boost::beast::http::verb::a : b ## Router.add_handler(std::move(handler)); break;
+#define HANDLER_CASE1(a) HANDLER_CASE(a, a)
+
+void Listener::add_handler(std::unique_ptr<handler::RouteHandler> && handler) {
     auto method = handler->method();
-    if (method == web::http::methods::GET) {
-        getRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::POST) {
-        postRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::PUT) {
-        putRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::DEL) {
-        delRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::HEAD) {
-        headRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::OPTIONS) {
-        optionsRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::TRCE) {
-        traceRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::MERGE) {
-        mergeRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::CONNECT) {
-        connectRouter.add_handler(std::move(handler));
-    }
-    else if (method == web::http::methods::PATCH) {
-        patchRouter.add_handler(std::move(handler));
+    switch (method) {
+        HANDLER_CASE1(get)
+        HANDLER_CASE1(post)
+        HANDLER_CASE1(put)
+        HANDLER_CASE(delete_, del)
+        HANDLER_CASE1(head)
+        HANDLER_CASE1(options)
+        HANDLER_CASE1(trace)
+        HANDLER_CASE1(merge)
+        HANDLER_CASE1(connect)
+        HANDLER_CASE1(patch)
     }
 }
+
+#undef HANDLER_CASE1
+#undef HANDLER_CASE

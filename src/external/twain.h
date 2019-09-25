@@ -96,8 +96,6 @@
  
 \* ======================================================================== */
 
-#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
-#pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #ifndef TWAIN
 #define TWAIN
 

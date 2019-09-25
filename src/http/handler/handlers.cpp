@@ -1,8 +1,8 @@
 #include "handlers.hpp"
 
-#include "devices.cpp"
-#include "scan.cpp"
-#include "status.cpp"
+#include "devices.hpp"
+#include "scan.hpp"
+#include "status.hpp"
 
 #include <vector>
 #include <memory>
@@ -13,9 +13,9 @@ std::vector<std::unique_ptr<RouteHandler>> handlers;
 
 void create_handlers() {
     handlers.clear();
-    handlers.emplace_back(std::make_unique<StatusHandler>());
-    handlers.emplace_back(std::make_unique<ScanHandler>());
-    handlers.emplace_back(std::make_unique<DevicesHandler>());
+    handlers.emplace_back(std::make_unique<handler::DevicesHandler>());
+    handlers.emplace_back(std::make_unique<handler::ScanHandler>());
+    handlers.emplace_back(std::make_unique<handler::StatusHandler>());
 }
 
 void install_handlers(const std::shared_ptr<Listener> &listener) {

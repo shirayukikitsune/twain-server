@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/dll.hpp>
-#include <boost/function.hpp>
 #include <nlohmann/json.hpp>
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
@@ -30,14 +28,16 @@ namespace dasa::gliese::scanner {
         std::list<TW_IDENTITY> listSources();
         TW_IDENTITY getDefaultDataSource();
 
-        boost::function<TW_UINT16(pTW_IDENTITY, pTW_IDENTITY, TW_UINT32, TW_UINT16, TW_UINT16, TW_MEMREF)> entry;
+        DSMENTRYPROC entry;
 
-        TW_STATUSUTF8 getStatus(TW_UINT16 rc);
+        TW_STATUS getStatus(TW_UINT16 rc);
 
         bool loadDataSource(TW_UINT32 id);
         bool enableDataSource(TW_HANDLE handle, bool showUI);
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
         bool closeDS();
+
+        bool isUsingCallbacks() { return useCallbacks; }
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
 
@@ -52,7 +52,12 @@ namespace dasa::gliese::scanner {
         TW_IDENTITY identity{};
         TW_ENTRYPOINT entrypoint{};
         TW_USERINTERFACE ui{};
-        boost::dll::shared_library DSM;
+#ifdef TWH_CMP_MSC
+        HMODULE
+#else
+        void*
+#endif
+            DSM = nullptr;
         int state = 1;
         bool useCallbacks = false;
 

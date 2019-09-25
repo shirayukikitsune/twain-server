@@ -13,10 +13,13 @@ namespace dasa::gliese::scanner::windows
         void stop() { shouldRun = false; }
 
         Twain& getTwain() override { return twain; }
+        TW_HANDLE getParentWindow() override { return hwnd; }
+        TW_MEMREF getParentWindowRef() override { return &hwnd; }
 
     private:
         bool shouldRun = true;
         Twain twain;
+        HWND hwnd = nullptr;
     };
 
 }

@@ -1,13 +1,25 @@
-#pragma ide diagnostic ignored "hicpp-signed-bitwise"
+#include "application.hpp"
+
 #include "twain.hpp"
 
 #include "exception/dsm_exception.hpp"
 #include "twain/memory_transfer.hpp"
-#include "application.hpp"
+#include "twain/native_transfer.hpp"
 
 #include <cstring>
 #include <list>
 #include <loguru.hpp>
+
+#ifdef TWH_CMP_GNU
+#include <dlfcn.h>
+#define LOADLIBRARY(lib) dlopen(lib, RTLD_NOW)
+#define LOADFUNCTION(lib, func) dlsym(lib, func)
+#define UNLOADLIBRARY(lib) dlclose(lib)
+#else
+#define LOADLIBRARY(lib) LoadLibraryA(lib) 
+#define LOADFUNCTION(lib, func) GetProcAddress(lib, func)
+#define UNLOADLIBRARY(lib) FreeLibrary(lib)
+#endif
 
 using dasa::gliese::scanner::Twain;
 using namespace dasa::gliese::scanner::exception;
@@ -38,14 +50,27 @@ void Twain::loadDSM(const char *path) {
         return;
     }
 
-    try {
-        DSM.load(path);
-        entry = DSM.get<TW_UINT16(pTW_IDENTITY, pTW_IDENTITY, TW_UINT32, TW_UINT16, TW_UINT16, TW_MEMREF)>("DSM_Entry");
-        state = 2;
+    DSM = LOADLIBRARY(path);
+
+    if (DSM == nullptr) {
+        ABORT_S() << "Failed to open TWAIN library at path [" << path << "]";
+        return;
     }
-    catch (std::exception &e) {
-        ABORT_S() << "Failed to open TWAIN library at path [" << path << "]: " << e.what();
+
+    entry = reinterpret_cast<DSMENTRYPROC>(LOADFUNCTION(DSM, "DSM_Entry"));
+
+#ifdef TWH_CMP_GNU
+    if ((auto error = dlerror()) != 0) {
+        ABORT_S() << "Failed to get TWAIN DSM_Entry: " << error;
+        return;
     }
+#else
+    if (entry == nullptr) {
+        ABORT_S() << "Failed to get TWAIN DSM_Entry";
+        return;
+    }
+#endif
+    state = 2;
 }
 
 void Twain::openDSM() {
@@ -58,12 +83,14 @@ void Twain::openDSM() {
         return;
     }
 
-    auto result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_OPENDSM, nullptr);
+    auto parent = application->getParentWindow();
+    auto result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_OPENDSM, &parent);
     if (result != TWRC_SUCCESS) {
         throw DSMOpenException(result);
     }
 
     if ((identity.SupportedGroups & DF_DSM2) == DF_DSM2) {
+        memset(&entrypoint, 0, sizeof(TW_ENTRYPOINT));
         entrypoint.Size = sizeof(TW_ENTRYPOINT);
         result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_ENTRYPOINT, MSG_GET, &entrypoint);
         if (result != TWRC_SUCCESS) {
@@ -128,16 +155,16 @@ TW_IDENTITY Twain::getDefaultDataSource() {
     return current;
 }
 
-TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
-    TW_STATUSUTF8 twStatus;
-    memset(&twStatus, 0, sizeof(TW_STATUSUTF8));
+TW_STATUS Twain::getStatus(TW_UINT16) {
+    TW_STATUS twStatus;
+    memset(&twStatus, 0, sizeof(TW_STATUS));
 
     if (state < 3) {
         LOG_S(ERROR) << "Trying to get status when DSM is not active";
         return twStatus;
     }
 
-    entry(getIdentity(), 0, DG_CONTROL, DAT_STATUSUTF8, MSG_GET, &twStatus);
+    entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, &twStatus);
     return twStatus;
 }
 
@@ -235,8 +262,10 @@ bool Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
         return false;
     }
 
+    memset(&ui, 0, sizeof(TW_USERINTERFACE));
+
     ui.ShowUI = showUI;
-    ui.ModalUI = false;
+    ui.ModalUI = TRUE;
     ui.hParent = handle;
 
     auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, &ui);
@@ -318,6 +347,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
 
     returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, &cap);
     if (returnCode == TWRC_FAILURE) {
+        auto s = getStatus(returnCode);
         LOG_S(ERROR) << "Failed to set capability";
     }
 
@@ -334,7 +364,7 @@ void Twain::startScan(std::ostream &os) {
         return;
     }
 
-    setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
+    //setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
 
     TW_CAPABILITY xferCap;
     xferCap.Cap = ICAP_XFERMECH;
@@ -349,13 +379,22 @@ void Twain::startScan(std::ostream &os) {
         return;
     }
 
-    if (mech != TWSX_MEMORY) {
-        LOG_S(ERROR) << "The only supported ICAP_XFERMECH is TWSX_MEMORY";
-        return;
+    switch (mech)
+    {
+    case TWSX_MEMORY: {
+        auto transfer = std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, os);
+        transfer->transfer();
+        break;
     }
-
-    auto transfer = std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, os);
-    transfer->transfer();
+    case TWSX_NATIVE: {
+        auto transfer = std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this, os);
+        transfer->transfer();
+        break;
+    }
+    default:
+        LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
+        break;
+    }
 }
 
 TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {

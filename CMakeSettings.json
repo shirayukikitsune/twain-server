@@ -13,7 +13,7 @@
       "variables": [
         {
           "name": "Boost_INCLUDE_DIR",
-          "value": "C:/local/boost_1_71_0",
+          "value": "D:/dev/boost_1_71_0",
           "type": "PATH"
         },
         {
@@ -28,13 +28,13 @@
         },
         {
           "name": "ZLIB_ROOT",
-          "value": "C:/local/zlib_1_2_11/x64",
+          "value": "D:/dev/zlib",
           "type": "PATH"
         },
         {
           "name": "ZLIB_LIBRARY",
-          "value": "C:/local/zlib_1_2_11/x64/lib/zlibstat.lib",
-          "type": "STRING"
+          "value": "D:/dev/zlib/lib_release/zlibstatic.lib",
+          "type": "PATHFILE"
         },
         {
           "name": "BUILD_TESTS",

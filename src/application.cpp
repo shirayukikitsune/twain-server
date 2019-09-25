@@ -1,6 +1,7 @@
+#include "http/listener.hpp"
+
 #include "application.hpp"
 
-#include "http/listener.hpp"
 #include "http/handler/handlers.hpp"
 
 using namespace dasa::gliese::scanner;
