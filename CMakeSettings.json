@@ -1,47 +1,40 @@
 ﻿{
-  "configurations": [
-    {
-      "name": "x64-Debug",
-      "generator": "Ninja",
-      "configurationType": "Debug",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
-      "buildRoot": "${projectDir}\\out\\build\\${name}",
-      "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "",
-      "buildCommandArgs": "-v",
-      "ctestCommandArgs": "",
-      "variables": [
-        {
-          "name": "Boost_INCLUDE_DIR",
-          "value": "D:/dev/boost_1_71_0",
-          "type": "PATH"
-        },
-        {
-          "name": "CPPREST_EXCLUDE_WEBSOCKETS",
-          "value": "True",
-          "type": "BOOL"
-        },
-        {
-          "name": "BUILD_SAMPLES",
-          "value": "False",
-          "type": "BOOL"
-        },
-        {
-          "name": "ZLIB_ROOT",
-          "value": "D:/dev/zlib",
-          "type": "PATH"
-        },
-        {
-          "name": "ZLIB_LIBRARY",
-          "value": "D:/dev/zlib/lib_release/zlibstatic.lib",
-          "type": "PATHFILE"
-        },
-        {
-          "name": "BUILD_TESTS",
-          "value": "False",
-          "type": "BOOL"
-        }
-      ]
-    }
-  ]
+"configurations": [
+{
+"name": "x64-Debug",
+"generator": "Ninja",
+"configurationType": "Debug",
+"inheritEnvironments": [ "msvc_x64_x64" ],
+"buildRoot": "${projectDir}\\out\\build-x64\\${name}",
+"installRoot": "${projectDir}\\out\\install\\${name}",
+"cmakeCommandArgs": "",
+"buildCommandArgs": "-v",
+"ctestCommandArgs": "",
+"variables": [
+{
+"name": "Boost_INCLUDE_DIR",
+"value": "C:/local/boost_1_71_0",
+"type": "PATH"
+}
+]
+},
+{
+"name": "x86-Debug",
+"generator": "Ninja",
+"configurationType": "Debug",
+"buildRoot": "${projectDir}\\out\\build-x86\\${name}",
+"installRoot": "${projectDir}\\out\\install\\${name}",
+"cmakeCommandArgs": "",
+"buildCommandArgs": "-v",
+"ctestCommandArgs": "",
+"inheritEnvironments": [ "msvc_x86" ],
+"variables": [
+{
+"name": "Boost_INCLUDE_DIR",
+"value": "C:/local/boost_1_71_0",
+"type": "PATH"
+}
+]
+}
+]
 }

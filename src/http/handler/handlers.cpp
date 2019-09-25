@@ -14,8 +14,15 @@ std::vector<std::unique_ptr<RouteHandler>> handlers;
 void create_handlers() {
     handlers.clear();
     handlers.emplace_back(std::make_unique<handler::DevicesHandler>());
-    handlers.emplace_back(std::make_unique<handler::ScanHandler>());
-    handlers.emplace_back(std::make_unique<handler::StatusHandler>());
+    
+	handlers.emplace_back(std::make_unique<handler::PrepareScanHandler>());
+	handlers.emplace_back(std::make_unique<handler::HasNextScanHandler>());
+	handlers.emplace_back(std::make_unique<handler::NextImageDataScanHandler>());
+	handlers.emplace_back(std::make_unique<handler::NextScanHandler>());
+	handlers.emplace_back(std::make_unique<handler::EndScanHandler>());
+	handlers.emplace_back(std::make_unique<handler::ScanHandler>());
+    
+	handlers.emplace_back(std::make_unique<handler::StatusHandler>());
 }
 
 void install_handlers(const std::shared_ptr<Listener> &listener) {

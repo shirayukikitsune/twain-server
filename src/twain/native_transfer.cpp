@@ -3,114 +3,87 @@
 
 using namespace dasa::gliese::scanner::twain;
 
-void NativeTransfer::transfer() {
-    LOG_SCOPE_FUNCTION(INFO);
+TW_IMAGEINFO NativeTransfer::prepare() {
+	LOG_S(INFO) << "Getting image info";
 
-    bool pendingTransfers = true;
+	TW_IMAGEINFO imageInfo;
+	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
+	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, &imageInfo);
 
-    TW_IMAGEINFO imageInfo;
-    int idx = 0;
+	twain->setState(7);
 
-    while (pendingTransfers) {
-        LOG_SCOPE_F(INFO, "transfer #%i", idx++);
-        LOG_S(INFO) << "Getting image info";
-        memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
-        twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, &imageInfo);
+	return imageInfo;
+}
 
-        TW_MEMREF hImg = nullptr;
+bool NativeTransfer::transferOne(std::ostream& os) {
+	LOG_SCOPE_FUNCTION(INFO);
 
-        LOG_S(INFO) << "Starting transfer";
-        auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, &hImg);
+	TW_MEMREF hImg = nullptr;
 
-        if (rc == TWRC_CANCEL) {
-            LOG_S(WARNING) << "Cancelled transfer while trying to get data";
-            break;
-        }
-        if (rc == TWRC_FAILURE) {
-            LOG_S(ERROR) << "Error while transfering data from DS";
-            break;
-        }
-        if (rc == TWRC_XFERDONE) {
-            PBITMAPINFOHEADER pDIB = (PBITMAPINFOHEADER)twain->DSM_LockMemory(hImg);
-            if (!pDIB) {
-                LOG_S(ERROR) << "Failed to lock memory";
-                break;
-            }
+	LOG_S(INFO) << "Starting transfer";
+	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, &hImg);
 
-            DWORD paletteSize = 0;
-            switch (pDIB->biBitCount) {
-            case 1:
-                paletteSize = 2;
-                break;
-            case 8:
-                paletteSize = 256;
-                break;
-            case 24:
-                break;
-            default:
-                assert(0); //Not going to work!
-                break;
-            }
+	if (rc == TWRC_CANCEL) {
+		LOG_S(WARNING) << "Cancelled transfer while trying to get data";
+		return false;
+	}
+	if (rc == TWRC_FAILURE) {
+		LOG_S(ERROR) << "Error while transfering data from DS";
+		return false;
+	}
+	if (rc == TWRC_XFERDONE) {
+		PBITMAPINFOHEADER pDIB = (PBITMAPINFOHEADER)twain->DSM_LockMemory(hImg);
+		if (!pDIB) {
+			LOG_S(ERROR) << "Failed to lock memory";
+			return false;
+		}
 
-            if (pDIB->biSizeImage == 0)
-            {
-                pDIB->biSizeImage = ((((pDIB->biWidth * pDIB->biBitCount) + 31) & ~31) / 8) * pDIB->biHeight;
+		DWORD paletteSize = 0;
+		switch (pDIB->biBitCount) {
+		case 1:
+			paletteSize = 2;
+			break;
+		case 8:
+			paletteSize = 256;
+			break;
+		case 24:
+			break;
+		default:
+			assert(0); //Not going to work!
+			break;
+		}
 
-                // If a compression scheme is used the result may infact be larger
-                // Increase the size to account for this.
-                if (pDIB->biCompression != 0)
-                {
-                    pDIB->biSizeImage = (pDIB->biSizeImage * 3) / 2;
-                }
-            }
+		if (pDIB->biSizeImage == 0)
+		{
+			pDIB->biSizeImage = ((((pDIB->biWidth * pDIB->biBitCount) + 31) & ~31) / 8) * pDIB->biHeight;
 
-            int nImageSize = pDIB->biSizeImage + (sizeof(RGBQUAD)*paletteSize) + sizeof(BITMAPINFOHEADER);
+			// If a compression scheme is used the result may infact be larger
+			// Increase the size to account for this.
+			if (pDIB->biCompression != 0)
+			{
+				pDIB->biSizeImage = (pDIB->biSizeImage * 3) / 2;
+			}
+		}
 
-            BITMAPFILEHEADER bmpFIH = { 0 };
-            bmpFIH.bfType = ((WORD)('M' << 8) | 'B');
-            bmpFIH.bfSize = nImageSize + sizeof(BITMAPFILEHEADER);
-            bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD)*paletteSize);
+		int nImageSize = pDIB->biSizeImage + (sizeof(RGBQUAD) * paletteSize) + sizeof(BITMAPINFOHEADER);
 
-            os.write(reinterpret_cast<char*>(&bmpFIH), sizeof(BITMAPFILEHEADER));
-            os.write(reinterpret_cast<char*>(pDIB), nImageSize);
-        }
+		BITMAPFILEHEADER bmpFIH = { 0 };
+		bmpFIH.bfType = ((WORD)('M' << 8) | 'B');
+		bmpFIH.bfSize = nImageSize + sizeof(BITMAPFILEHEADER);
+		bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD) * paletteSize);
 
-        twain->DSM_UnlockMemory(hImg);
-        twain->DSM_Free(hImg);
+		os.write(reinterpret_cast<char*>(&bmpFIH), sizeof(BITMAPFILEHEADER));
+		os.write(reinterpret_cast<char*>(pDIB), nImageSize);
+	}
 
-        if (rc != TWRC_XFERDONE) {
-            break;
-        }
+	LOG_S(INFO) << "Transfer finished";
 
-        LOG_S(INFO) << "Checking for more images";
-        TW_PENDINGXFERS pendingXfers;
-        memset(&pendingXfers, 0, sizeof(TW_PENDINGXFERS));
+	twain->DSM_UnlockMemory(hImg);
+	twain->DSM_Free(hImg);
 
-        rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, &pendingXfers);
+	if (rc != TWRC_XFERDONE) {
+		return false;
+	}
 
-        if (rc == TWRC_SUCCESS) {
-            LOG_S(INFO) << "Pending images count: " << pendingXfers.Count;
-            if (pendingXfers.Count == 0) {
-                pendingTransfers = false;
-            }
-        } else {
-            pendingTransfers = false;
-        }
-    }
-
-    if (pendingTransfers) {
-        TW_PENDINGXFERS pendxfers;
-        memset(&pendxfers, 0, sizeof(pendxfers));
-
-        twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, &pendxfers);
-
-        // We need to get rid of any pending transfers
-        if (pendxfers.Count != 0) {
-            memset(&pendxfers, 0, sizeof(pendxfers));
-
-            twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, (TW_MEMREF)&pendxfers);
-        }
-    }
-
-    twain->setState(5);
+	return true;
 }

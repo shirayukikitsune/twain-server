@@ -8,11 +8,9 @@
 namespace dasa::gliese::scanner::twain {
     class NativeTransfer : public Transfer {
     public:
-        NativeTransfer(dasa::gliese::scanner::Twain *twain, std::ostream &outputStream) : twain(twain), os(outputStream) {}
-        void transfer() final;
+        NativeTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
 
-    private:
-        Twain *twain;
-        std::ostream &os;
+		TW_IMAGEINFO prepare() final;
+		bool transferOne(std::ostream& outputStream) final;
     };
 }

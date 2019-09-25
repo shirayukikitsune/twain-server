@@ -358,10 +358,49 @@ finishing:
     return returnCode;
 }
 
-void Twain::startScan(std::ostream &os) {
+typedef struct {
+	TW_UINT16  ItemType;
+#ifdef __APPLE__ 
+	TW_UINT16  Dummy;
+#endif
+	TW_FIX32   Item;
+} TW_ONEVALUE_FIX32, FAR* pTW_ONEVALUE_FIX32;
+
+TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue) {
+	TW_INT16        twrc = TWRC_FAILURE;
+	TW_CAPABILITY   cap;
+
+	cap.Cap = Cap;
+	cap.ConType = TWON_ONEVALUE;
+	cap.hContainer = DSM_MemAllocate(sizeof(TW_ONEVALUE_FIX32));
+	if (0 == cap.hContainer)
+	{
+		LOG_S(ERROR) << "Error allocating memory";
+		return twrc;
+	}
+
+	pTW_ONEVALUE_FIX32 pVal = (pTW_ONEVALUE_FIX32)DSM_LockMemory(cap.hContainer);
+
+	pVal->ItemType = TWTY_FIX32;
+	pVal->Item = *_pValue;
+
+	// capability structure is set, make the call to the source now
+	twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, &cap);
+	if (TWRC_FAILURE == twrc)
+	{
+		LOG_S(ERROR) << "Could not set capability";
+	}
+
+	DSM_UnlockMemory(cap.hContainer);
+	DSM_Free(cap.hContainer);
+
+	return twrc;
+}
+
+std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan() {
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
-        return;
+        return nullptr;
     }
 
     //setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
@@ -372,29 +411,25 @@ void Twain::startScan(std::ostream &os) {
     TW_UINT32 mech;
 
     if (rc == TWRC_FAILURE) {
-        return;
+        return nullptr;
     }
     if (!getCurrent(&xferCap, mech)) {
         LOG_S(ERROR) << "Failed to get current ICAP_XFERMECH value";
-        return;
+        return nullptr;
     }
 
     switch (mech)
     {
-    case TWSX_MEMORY: {
-        auto transfer = std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, os);
-        transfer->transfer();
-        break;
-    }
-    case TWSX_NATIVE: {
-        auto transfer = std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this, os);
-        transfer->transfer();
-        break;
-    }
+    case TWSX_MEMORY:
+        return std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this);
+    case TWSX_NATIVE:
+        return std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this);
     default:
         LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
         break;
     }
+
+	return nullptr;
 }
 
 TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {

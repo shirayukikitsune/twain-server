@@ -7,6 +7,7 @@
 #endif
 
 #include "external/twain.h"
+#include "twain/transfer.hpp"
 
 namespace dasa::gliese::scanner {
 
@@ -40,8 +41,9 @@ namespace dasa::gliese::scanner {
         bool isUsingCallbacks() { return useCallbacks; }
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
+		TW_UINT16 setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue);
 
-        void startScan(std::ostream &os);
+        std::unique_ptr<dasa::gliese::scanner::twain::Transfer> startScan();
 
         TW_HANDLE DSM_MemAllocate(TW_UINT32 size);
         void DSM_Free(TW_HANDLE memory);

@@ -54,6 +54,38 @@ void Application::run() {
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
+		if (twain.getState() > 3) {
+			TW_EVENT twEvent;
+
+			twEvent.pEvent = (TW_MEMREF)&msg;
+			twEvent.TWMessage = MSG_NULL;
+			TW_UINT16  twRC = TWRC_NOTDSEVENT;
+			twRC = twain.entry(twain.getIdentity(), twain.getDataSouce(), DG_CONTROL, DAT_EVENT, MSG_PROCESSEVENT, &twEvent);
+
+			if (!twain.isUsingCallbacks() && twRC == TWRC_DSEVENT) {
+				// check for message from Source
+				switch (twEvent.TWMessage)
+				{
+				case MSG_XFERREADY:
+					twain.setState(6);
+				case MSG_CLOSEDSREQ:
+				case MSG_CLOSEDSOK:
+				case MSG_NULL:
+					LOG_S(INFO) << "Got message from DSM: " << twEvent.TWMessage;
+					break;
+				default:
+					LOG_S(INFO) << "Got unknown message from DSM: " << twEvent.TWMessage;
+					break;
+				}
+
+				if (twEvent.TWMessage != MSG_NULL) {
+					continue;
+				}
+			}
+			if (twRC == TWRC_DSEVENT) {
+				continue;
+			}
+		}
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -119,5 +151,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         PostQuitMessage(0);
         return 0;
     }
+
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

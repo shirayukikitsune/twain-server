@@ -10,7 +10,7 @@ namespace dasa::gliese::scanner::http::handler {
         }
 
         [[nodiscard]] boost::beast::string_view route() const override {
-            return "/devices";
+            return "/status";
         }
 
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;

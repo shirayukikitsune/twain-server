@@ -20,7 +20,7 @@ target_sources(gliese-scanner PUBLIC
         http/handler/handlers.cpp http/handler/handlers.hpp
         http/handler/scan.cpp http/handler/scan.hpp
         http/handler/status.cpp
-        twain/transfer.hpp
+        twain/transfer.cpp twain/transfer.hpp
         twain/memory_transfer.cpp twain/memory_transfer.hpp
         twain/native_transfer.cpp twain/native_transfer.hpp)
 

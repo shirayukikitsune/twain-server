@@ -8,11 +8,15 @@
 namespace dasa::gliese::scanner::twain {
     class MemoryTransfer : public Transfer {
     public:
-        MemoryTransfer(dasa::gliese::scanner::Twain *twain, std::ostream &outputStream) : twain(twain), os(outputStream) {}
-        void transfer() final;
+        MemoryTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
+
+		TW_IMAGEINFO prepare() final;
+        bool transferOne(std::ostream& outputStream) final;
 
     private:
-        Twain *twain;
-        std::ostream &os;
-    };
+		TW_IMAGEINFO imageInfo{};
+		TW_SETUPMEMXFER sourceBufferSize{};
+		TW_IMAGEMEMXFER memXferTemplate{};
+		TW_HANDLE buffer = nullptr;
+	};
 }
