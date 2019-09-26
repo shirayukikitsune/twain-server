@@ -6,6 +6,12 @@ else()
     add_executable(gliese-scanner application_linux.cpp application_linux.hpp)
 endif()
 
+if (APPLE)
+    find_library(TWAIN_LIBRARY TWAIN)
+    mark_as_advanced(TWAIN_LIBRARY)
+    target_link_libraries(gliese-scanner PRIVATE ${TWAIN_LIBRARY})
+endif()
+
 target_sources(gliese-scanner PUBLIC
         external/twain.h
         application.cpp application.hpp

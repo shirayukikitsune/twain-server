@@ -16,7 +16,7 @@
 #define LOADFUNCTION(lib, func) dlsym(lib, func)
 #define UNLOADLIBRARY(lib) dlclose(lib)
 #else
-#define LOADLIBRARY(lib) LoadLibraryA(lib) 
+#define LOADLIBRARY(lib) LoadLibraryA(lib)
 #define LOADFUNCTION(lib, func) GetProcAddress(lib, func)
 #define UNLOADLIBRARY(lib) FreeLibrary(lib)
 #endif
@@ -30,18 +30,22 @@ Twain::~Twain() {
 }
 
 void Twain::fillIdentity() {
+#ifdef __APPLE__
+    identity.Id = nullptr;
+#else
     identity.Id = 0;
+#endif
     identity.Version.Country = TWCY_BRAZIL;
-    strncpy(identity.Version.Info, "1.0.0", 32);
+    strncpy(reinterpret_cast<char*>(identity.Version.Info), "1.0.0", 32);
     identity.Version.Language = TWLG_PORTUGUESE_BRAZIL;
     identity.Version.MajorNum = 1;
     identity.Version.MinorNum = 0;
     identity.ProtocolMajor = 2;
     identity.ProtocolMinor = 4;
     identity.SupportedGroups = DF_APP2 | DG_CONTROL | DG_IMAGE;
-    strncpy(identity.Manufacturer, "Diagnosticos da America SA", 32);
-    strncpy(identity.ProductFamily, "Gliese", 32);
-    strncpy(identity.ProductName, "Scanner Integration", 32);
+    strncpy(reinterpret_cast<char*>(identity.Manufacturer), "Diagnosticos da America SA", 32);
+    strncpy(reinterpret_cast<char*>(identity.ProductFamily), "Gliese", 32);
+    strncpy(reinterpret_cast<char*>(identity.ProductName), "Scanner Integration", 32);
 }
 
 void Twain::loadDSM(const char *path) {
@@ -50,6 +54,10 @@ void Twain::loadDSM(const char *path) {
         return;
     }
 
+    // In OSX, TWAIN is a framework, statically linked
+#ifdef __APPLE__
+    entry = &DSM_Entry;
+#else
     DSM = LOADLIBRARY(path);
 
     if (DSM == nullptr) {
@@ -60,8 +68,9 @@ void Twain::loadDSM(const char *path) {
     entry = reinterpret_cast<DSMENTRYPROC>(LOADFUNCTION(DSM, "DSM_Entry"));
 
 #ifdef TWH_CMP_GNU
-    if ((auto error = dlerror()) != 0) {
-        ABORT_S() << "Failed to get TWAIN DSM_Entry: " << error;
+    auto err = dlerror();
+    if (err) {
+        ABORT_S() << "Failed to get TWAIN DSM_Entry: " << err;
         return;
     }
 #else
@@ -69,6 +78,7 @@ void Twain::loadDSM(const char *path) {
         ABORT_S() << "Failed to get TWAIN DSM_Entry";
         return;
     }
+#endif
 #endif
     state = 2;
 }
@@ -84,7 +94,7 @@ void Twain::openDSM() {
     }
 
     auto parent = application->getParentWindow();
-    auto result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_OPENDSM, &parent);
+    auto result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_OPENDSM, reinterpret_cast<TW_MEMREF>(&parent));
     if (result != TWRC_SUCCESS) {
         throw DSMOpenException(result);
     }
@@ -92,7 +102,7 @@ void Twain::openDSM() {
     if ((identity.SupportedGroups & DF_DSM2) == DF_DSM2) {
         memset(&entrypoint, 0, sizeof(TW_ENTRYPOINT));
         entrypoint.Size = sizeof(TW_ENTRYPOINT);
-        result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_ENTRYPOINT, MSG_GET, &entrypoint);
+        result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_ENTRYPOINT, MSG_GET, reinterpret_cast<TW_MEMREF>(&entrypoint));
         if (result != TWRC_SUCCESS) {
             throw DSMOpenException(result);
         }
@@ -126,7 +136,7 @@ std::list<TW_IDENTITY> Twain::listSources() {
 
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
-    auto rc = entry(&identity, 0, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, (TW_MEMREF)&current);
+    auto rc = entry(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
         return sources;
     }
@@ -134,7 +144,7 @@ std::list<TW_IDENTITY> Twain::listSources() {
     do {
         sources.push_back(current);
         memset(&current, 0, sizeof(TW_IDENTITY));
-    } while (entry(&identity, 0, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, (TW_MEMREF)&current) == TWRC_SUCCESS);
+    } while (entry(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
 
     return sources;
 }
@@ -148,7 +158,7 @@ TW_IDENTITY Twain::getDefaultDataSource() {
         return current;
     }
 
-    auto rc = entry(getIdentity(), 0, DG_CONTROL, DAT_IDENTITY, MSG_GETDEFAULT, (TW_MEMREF)&current);
+    auto rc = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETDEFAULT, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
         getStatus(rc);
     }
@@ -164,7 +174,7 @@ TW_STATUS Twain::getStatus(TW_UINT16) {
         return twStatus;
     }
 
-    entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, &twStatus);
+    entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
     return twStatus;
 }
 
@@ -190,7 +200,11 @@ static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT
     return TWRC_SUCCESS;
 }
 
+#ifdef __APPLE__
+bool Twain::loadDataSource(TW_MEMREF id) {
+#else
 bool Twain::loadDataSource(TW_UINT32 id) {
+#endif
     if (state < 3) {
         LOG_S(ERROR) << "Trying to load DS when DSM is not active";
         return false;
@@ -221,7 +235,7 @@ bool Twain::loadDataSource(TW_UINT32 id) {
     callback.RefCon = 0;
     useCallbacks = false;
 
-    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, currentDS.get());
+    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to open DataSource";
@@ -244,7 +258,7 @@ bool Twain::loadDataSource(TW_UINT32 id) {
         LOG_S(WARNING) << "MSG_REGISTER_CALLBACK not supported";
     }
 #else
-    resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
+    resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, reinterpret_cast<TW_MEMREF>(&callback));
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to register callback: " << resultCode;
         return false;
@@ -268,7 +282,7 @@ bool Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
     ui.ModalUI = TRUE;
     ui.hParent = handle;
 
-    auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, &ui);
+    auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
     if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
         LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
         return false;
@@ -284,7 +298,7 @@ bool Twain::closeDS() {
         return false;
     }
 
-    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, currentDS.get());
+    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to close DS";
@@ -345,7 +359,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
             goto finishing;
     }
 
-    returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, &cap);
+    returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
         auto s = getStatus(returnCode);
         LOG_S(ERROR) << "Failed to set capability";
@@ -360,7 +374,7 @@ finishing:
 
 typedef struct {
 	TW_UINT16  ItemType;
-#ifdef __APPLE__ 
+#ifdef __APPLE__
 	TW_UINT16  Dummy;
 #endif
 	TW_FIX32   Item;
@@ -379,13 +393,13 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue) {
 		return twrc;
 	}
 
-	pTW_ONEVALUE_FIX32 pVal = (pTW_ONEVALUE_FIX32)DSM_LockMemory(cap.hContainer);
+	auto pVal = reinterpret_cast<pTW_ONEVALUE_FIX32>(DSM_LockMemory(cap.hContainer));
 
 	pVal->ItemType = TWTY_FIX32;
 	pVal->Item = *_pValue;
 
 	// capability structure is set, make the call to the source now
-	twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, &cap);
+	twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
 	if (TWRC_FAILURE == twrc)
 	{
 		LOG_S(ERROR) << "Could not set capability";
@@ -455,7 +469,7 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
     _cap.ConType = TWON_DONTCARE16;
 
     // capability structure is set, make the call to the source now
-    TW_UINT16 twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, _msg, &_cap);
+    TW_UINT16 twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
 
     return twrc;
 }
@@ -578,8 +592,12 @@ void Twain::DSM_UnlockMemory(TW_HANDLE memory)
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
-    os << "Device " << identity.Id;
+    os << "Device " << reinterpret_cast<std::ptrdiff_t>(identity.Id);
+#ifdef __APPLE__
+    if (identity.Id != nullptr) {
+#else
     if (identity.Id != 0) {
+#endif
         os << ": " << identity.Manufacturer << ", " << identity.ProductName << ", " << identity.ProductFamily;
     } else {
         os << " has no data";
@@ -589,7 +607,7 @@ std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
 
 nlohmann::json deviceToJson(TW_IDENTITY device) {
 	nlohmann::json deviceJson;
-	deviceJson["id"] = device.Id;
+	deviceJson["id"] = reinterpret_cast<unsigned long>(device.Id);
 	deviceJson["productName"] = device.ProductName;
 	deviceJson["manufacturer"] = device.Manufacturer;
 	deviceJson["productFamily"] = device.ProductFamily;

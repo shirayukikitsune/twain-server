@@ -34,7 +34,7 @@ void Transfer::checkPending() {
 	TW_PENDINGXFERS pendingXfers;
 	memset(&pendingXfers, 0, sizeof(TW_PENDINGXFERS));
 
-	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, &pendingXfers);
+	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, reinterpret_cast<TW_MEMREF>(&pendingXfers));
 
 	if (rc == TWRC_SUCCESS) {
 		LOG_S(INFO) << "Pending images count: " << pendingXfers.Count;
@@ -52,13 +52,13 @@ void Transfer::clearPending() {
 		TW_PENDINGXFERS pendxfers;
 		memset(&pendxfers, 0, sizeof(pendxfers));
 
-		twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, &pendxfers);
+		twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, reinterpret_cast<TW_MEMREF>(&pendxfers));
 
 		// We need to get rid of any pending transfers
 		if (pendxfers.Count != 0) {
 			memset(&pendxfers, 0, sizeof(pendxfers));
 
-			twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, &pendxfers);
+			twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, reinterpret_cast<TW_MEMREF>(&pendxfers));
 		}
 	}
 

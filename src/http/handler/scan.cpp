@@ -5,7 +5,6 @@
 
 #include <chrono>
 #include <loguru.hpp>
-#include <streambuf>
 #include <thread>
 
 extern dasa::gliese::scanner::Application *application;
@@ -13,7 +12,7 @@ extern dasa::gliese::scanner::Application *application;
 using namespace dasa::gliese::scanner::http::handler;
 namespace bh = boost::beast::http;
 
-static bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, std::string message, const bh::request<bh::string_body> &request) {
+static bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const std::string& message, const bh::request<bh::string_body> &request) {
     bh::response<bh::dynamic_body> res{ status, request.version() };
     res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(bh::field::content_type, "text/plain");
@@ -24,7 +23,7 @@ static bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, std::
 }
 
 bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& request) {
-	auto rawBody = request.body();
+	const auto& rawBody = request.body();
 	if (rawBody.empty()) {
 		return makeErrorResponse(bh::status::unprocessable_entity, "Invalid body", request);
 	}
@@ -42,7 +41,12 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		return makeErrorResponse(bh::status::bad_request, "Device was not specified", request);
 	}
 
+#ifdef __APPLE__
+	auto id = (unsigned long)deviceId;
+	if (!twain.loadDataSource(reinterpret_cast<TW_MEMREF>(id))) {
+#else
 	if (!twain.loadDataSource((TW_UINT32)deviceId)) {
+#endif
 		return makeErrorResponse(bh::status::internal_server_error, "Failed to load DS", request);
 	}
 
@@ -59,7 +63,7 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 
 		twain.setCapability(ICAP_PIXELTYPE, twPixelType, TWTY_UINT16);
 	}
-	
+
 	auto xResolution = body["resolution"]["x"];
 	if (xResolution.is_number_integer()) {
 		TW_FIX32 res;
@@ -113,7 +117,7 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	response.set(bh::field::content_type, "application/json");
-	
+
 	auto imageInfo = transfer->prepare();
 	nlohmann::json body;
 	body["bitsPerPixel"] = imageInfo.BitsPerPixel;
@@ -144,7 +148,7 @@ bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::st
 
 	nlohmann::json body;
 	body["hasNext"] = transfer->hasPending();
-	
+
 	boost::beast::ostream(response.body()) << body.dump();
 	response.prepare_payload();
 	return response;
@@ -164,7 +168,7 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	response.set(bh::field::content_type, "image/bmp");
-	auto& os = boost::beast::ostream(response.body());
+	auto os = boost::beast::ostream(response.body());
 
 	transfer->transferOne(os);
 	transfer->checkPending();
@@ -200,12 +204,14 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
 
     if (twain.getState() == 6) {
         response.set(bh::field::content_type, "image/bmp");
-        auto& os = boost::beast::ostream(response.body());
-        auto transfer = twain.startScan();
+        auto os = boost::beast::ostream(response.body());
+        transfer = twain.startScan();
 		transfer->transferAll(os);
     }
 
     twain.closeDS();
+
+    transfer = nullptr;
 
     response.prepare_payload();
     return response;

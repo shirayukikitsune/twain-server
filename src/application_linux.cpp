@@ -34,7 +34,9 @@ void Application::run() {
     LOG_SCOPE_FUNCTION(INFO);
     LOG_S(INFO) << "Application running";
 
-    listener->listen();
+    listener->start();
+
+    ioc.run();
 }
 
 int main(int argc, char **argv) {
@@ -42,9 +44,9 @@ int main(int argc, char **argv) {
 
     linux_application = new Application;
     application = linux_application;
-    auto listener = std::make_shared<dasa::gliese::scanner::http::Listener>();
+    auto listener = std::make_shared<dasa::gliese::scanner::http::Listener>(application->getIoContext());
 
-    listener->initialize(U("http://127.0.0.1:43456"));
+    listener->listen("127.0.0.1", 43456);
 
     LOG_F(INFO, "Opening HTTP listener on 127.0.0.1:43456");
 

@@ -65,8 +65,9 @@ Router* Listener::getRouterForVerb(boost::beast::http::verb verb)
         HANDLER_CASE1(merge)
         HANDLER_CASE1(connect)
         HANDLER_CASE1(patch)
+        default:
+            return nullptr;
     }
-    return nullptr;
 }
 
 #undef HANDLER_CASE1
@@ -109,6 +110,7 @@ void Listener::add_handler(std::unique_ptr<handler::RouteHandler> && handler) {
         HANDLER_CASE1(merge)
         HANDLER_CASE1(connect)
         HANDLER_CASE1(patch)
+        default: break;
     }
 }
 

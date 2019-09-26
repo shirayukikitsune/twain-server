@@ -8,7 +8,7 @@
 namespace dasa::gliese::scanner::twain {
     class MemoryTransfer : public Transfer {
     public:
-        MemoryTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
+        explicit MemoryTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
 
 		TW_IMAGEINFO prepare() final;
         bool transferOne(std::ostream& outputStream) final;

@@ -6,6 +6,7 @@
 namespace dasa::gliese::scanner::http::handler {
 	class RouteHandler {
 	public:
+	    virtual ~RouteHandler() = default;
 		[[nodiscard]] virtual boost::beast::http::verb method() const = 0;
 		[[nodiscard]] virtual boost::beast::string_view route() const = 0;
 

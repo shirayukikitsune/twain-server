@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <list>
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
 #include <Windows.h>
@@ -33,7 +34,11 @@ namespace dasa::gliese::scanner {
 
         TW_STATUS getStatus(TW_UINT16 rc);
 
+#ifdef __APPLE__
+        bool loadDataSource(TW_MEMREF id);
+#else
         bool loadDataSource(TW_UINT32 id);
+#endif
         bool enableDataSource(TW_HANDLE handle, bool showUI);
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
         bool closeDS();

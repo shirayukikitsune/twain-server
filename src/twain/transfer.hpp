@@ -15,13 +15,14 @@ namespace dasa::gliese::scanner {
 namespace dasa::gliese::scanner::twain {
     class Transfer {
     public:
-		Transfer(dasa::gliese::scanner::Twain* twain) : twain(twain) {}
+		explicit Transfer(dasa::gliese::scanner::Twain* twain) : twain(twain) {}
+		virtual ~Transfer() = default;
 
 		virtual TW_IMAGEINFO prepare() = 0;
         void transferAll(std::ostream& outputStream);
 		virtual bool transferOne(std::ostream& outputStream) = 0;
 		virtual void end() {}
-		
+
 		void checkPending();
 		void clearPending();
 		bool hasPending() { return pendingTransfers; }
