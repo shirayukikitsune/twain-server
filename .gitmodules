@@ -1,9 +1,6 @@
 [submodule "deps/loguru"]
 	path = deps/loguru
 	url = https://github.com/emilk/loguru.git
-[submodule "deps/cpprestsdk"]
-	path = deps/cpprestsdk
-	url = https://github.com/Microsoft/cpprestsdk.git
 [submodule "deps/json"]
 	path = deps/json
 	url = https://github.com/nlohmann/json.git
