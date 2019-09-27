@@ -4,3 +4,6 @@
 [submodule "deps/json"]
 	path = deps/json
 	url = https://github.com/nlohmann/json.git
+[submodule "deps/kitsune-ioc"]
+	path = deps/kitsune-ioc
+	url = https://github.com/shirayukikitsune/ioc.git
