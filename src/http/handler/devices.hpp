@@ -3,12 +3,8 @@
 #include "handler.hpp"
 
 namespace dasa::gliese::scanner::http::handler {
-    class DevicesHandler : public kitsune::ioc::Service<DevicesHandler, RouteHandler> {
+    class DevicesHandler : public kitsune::ioc::Service<DevicesHandler, GetMapping> {
     public:
-        [[nodiscard]] boost::beast::http::verb method() const override {
-            return boost::beast::http::verb::get;
-        }
-
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/devices";
         }

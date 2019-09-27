@@ -13,4 +13,16 @@ namespace dasa::gliese::scanner::http::handler {
 
         virtual boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body> && request) = 0;
 	};
+
+    template <boost::beast::http::verb Method>
+    class RequestMapping : public RouteHandler {
+        [[nodiscard]] boost::beast::http::verb method() const final {
+            return Method;
+        }
+    };
+
+    typedef RequestMapping<boost::beast::http::verb::get> GetMapping;
+    typedef RequestMapping<boost::beast::http::verb::post> PostMapping;
+    typedef RequestMapping<boost::beast::http::verb::put> PutMapping;
+    typedef RequestMapping<boost::beast::http::verb::delete_> DeleteMapping;
 }
