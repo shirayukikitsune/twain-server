@@ -3,7 +3,7 @@
 #include "handler.hpp"
 
 namespace dasa::gliese::scanner::http::handler {
-    class DevicesHandler : public RouteHandler {
+    class DevicesHandler : public kitsune::ioc::Service<DevicesHandler, RouteHandler> {
     public:
         [[nodiscard]] boost::beast::http::verb method() const override {
             return boost::beast::http::verb::get;

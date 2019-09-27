@@ -1,9 +1,7 @@
 #include "listener.hpp"
 #include "session.hpp"
-#include "../exception/http_exception.hpp"
 
 #include <boost/asio/strand.hpp>
-#include <boost/beast.hpp>
 #include <chrono>
 #include <thread>
 #include <loguru.hpp>
@@ -18,6 +16,17 @@ Listener::Listener(boost::beast::net::io_context &ioContext)
 void Listener::listen(const char *address, unsigned short port) {
     auto const netAddress = boost::beast::net::ip::make_address(address);
     boost::asio::ip::tcp::endpoint endpoint{ netAddress, port };
+
+    LOG_S(INFO) << "Setting up handlers";
+
+    auto serviceHandlers = kitsune::ioc::Injector<dasa::gliese::scanner::http::handler::RouteHandler>::getInstance().findServices();
+    for (auto & handlerPtr : serviceHandlers) {
+        auto handler = handlerPtr.lock();
+        if (handler) {
+            LOG_S(INFO) << "Found handler for path \"" << handler->route() << "\", method " << boost::beast::http::to_string(handler->method());
+            add_handler(std::move(handler));
+        }
+    }
 
     LOG_S(INFO) << "Creating TCP acceptor";
 
@@ -97,7 +106,7 @@ void Listener::loop(boost::beast::error_code ec) {
 #define HANDLER_CASE(a, b) case boost::beast::http::verb::a : b ## Router.add_handler(std::move(handler)); break;
 #define HANDLER_CASE1(a) HANDLER_CASE(a, a)
 
-void Listener::add_handler(std::unique_ptr<handler::RouteHandler> && handler) {
+void Listener::add_handler(std::shared_ptr<handler::RouteHandler> && handler) {
     auto method = handler->method();
     switch (method) {
         HANDLER_CASE1(get)

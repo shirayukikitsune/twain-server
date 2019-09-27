@@ -18,7 +18,7 @@ namespace dasa::gliese::scanner::http {
 
         void listen(const char *address, unsigned short port);
 
-        void add_handler(std::unique_ptr<handler::RouteHandler> && handler);
+        void add_handler(std::shared_ptr<handler::RouteHandler> && handler);
 
         void start() {
             loop();

@@ -3,7 +3,7 @@
 #include "handler.hpp"
 
 namespace dasa::gliese::scanner::http::handler {
-    class StatusHandler : public RouteHandler {
+    class StatusHandler : public kitsune::ioc::Service<StatusHandler, RouteHandler> {
     public:
         [[nodiscard]] boost::beast::http::verb method() const override {
             return boost::beast::http::verb::get;

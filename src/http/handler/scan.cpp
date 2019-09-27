@@ -1,11 +1,17 @@
 #include "scan.hpp"
 
-#include "handlers.hpp"
 #include "../../application.hpp"
 
 #include <chrono>
 #include <loguru.hpp>
 #include <thread>
+
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::PrepareScanHandler, prepareScanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextImageDataScanHandler, nextImageDataScanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::HasNextScanHandler, hasNextScanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextScanHandler, nextScanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::EndScanHandler, endScanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::ScanHandler, scanHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 

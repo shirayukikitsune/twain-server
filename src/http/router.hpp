@@ -10,7 +10,7 @@ namespace dasa::gliese::scanner::http {
 	public:
 		explicit Router(boost::beast::http::verb method) : method(std::move(method)) {}
 
-		void add_handler(std::unique_ptr<handler::RouteHandler>&& handler) {
+		void add_handler(std::shared_ptr<handler::RouteHandler>&& handler) {
 			handlers[handler->route()] = std::move(handler);
 		}
 
@@ -19,7 +19,7 @@ namespace dasa::gliese::scanner::http {
 	private:
 		static boost::beast::http::response<boost::beast::http::dynamic_body> makeNotFoundResponse(const boost::beast::http::request<boost::beast::http::string_body>& request);
 
-		std::map<boost::beast::string_view, std::unique_ptr<handler::RouteHandler>> handlers;
+		std::map<boost::beast::string_view, std::shared_ptr<handler::RouteHandler>> handlers;
 		boost::beast::http::verb method;
 	};
 }

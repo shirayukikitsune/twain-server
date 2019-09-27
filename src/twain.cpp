@@ -232,7 +232,11 @@ bool Twain::loadDataSource(TW_UINT32 id) {
     TW_CALLBACK callback;
     memset(&callback, 0, sizeof(TW_CALLBACK));
     callback.CallBackProc = (TW_MEMREF)&DSMCallback;
+#ifdef __APPLE__
+    callback.RefCon = nullptr;
+#else
     callback.RefCon = 0;
+#endif
     useCallbacks = false;
 
     auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
@@ -323,7 +327,11 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
         return returnCode;
     }
 
+#ifdef __APPLE__
+    auto pValue = reinterpret_cast<pTW_ONEVALUE>(cap.hContainer);
+#else
     auto pValue = (pTW_ONEVALUE)DSM_LockMemory(cap.hContainer);
+#endif
     pValue->ItemType = type;
 
     switch (type) {
@@ -361,7 +369,6 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
 
     returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
-        auto s = getStatus(returnCode);
         LOG_S(ERROR) << "Failed to set capability";
     }
 
@@ -387,7 +394,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue) {
 	cap.Cap = Cap;
 	cap.ConType = TWON_ONEVALUE;
 	cap.hContainer = DSM_MemAllocate(sizeof(TW_ONEVALUE_FIX32));
-	if (0 == cap.hContainer)
+	if (nullptr == cap.hContainer)
 	{
 		LOG_S(ERROR) << "Error allocating memory";
 		return twrc;
@@ -550,7 +557,7 @@ TW_HANDLE Twain::DSM_MemAllocate(TW_UINT32 size) {
 #ifdef TWH_CMP_MSC
     return ::GlobalAlloc(GPTR, size);
 #else
-    return nullptr;
+    return reinterpret_cast<TW_HANDLE>(malloc(size));
 #endif
 }
 
@@ -563,6 +570,8 @@ void Twain::DSM_Free(TW_HANDLE memory)
 
 #ifdef TWH_CMP_MSC
     ::GlobalFree(memory);
+#else
+    free(memory);
 #endif
 }
 
@@ -575,7 +584,7 @@ TW_MEMREF Twain::DSM_LockMemory(TW_HANDLE memory) {
 #ifdef TWH_CMP_MSC
     return (TW_MEMREF)::GlobalLock(memory);
 #else
-    return nullptr;
+    return reinterpret_cast<TW_MEMREF>(memory);
 #endif
 }
 
@@ -608,8 +617,8 @@ std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
 nlohmann::json deviceToJson(TW_IDENTITY device) {
 	nlohmann::json deviceJson;
 	deviceJson["id"] = reinterpret_cast<unsigned long>(device.Id);
-	deviceJson["productName"] = device.ProductName;
-	deviceJson["manufacturer"] = device.Manufacturer;
-	deviceJson["productFamily"] = device.ProductFamily;
+	deviceJson["productName"] = reinterpret_cast<char*>(device.ProductName);
+	deviceJson["manufacturer"] = reinterpret_cast<char*>(device.Manufacturer);
+	deviceJson["productFamily"] = reinterpret_cast<char*>(device.ProductFamily);
 	return deviceJson;
 }

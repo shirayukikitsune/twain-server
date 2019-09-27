@@ -1,6 +1,7 @@
 #include "devices.hpp"
-#include "handlers.hpp"
 #include "../../application.hpp"
+
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 
@@ -20,7 +21,7 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
         }
         response[i++] = deviceJson;
     }
-        
+
     bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
 	res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	res.set(bh::field::content_type, "application/json");

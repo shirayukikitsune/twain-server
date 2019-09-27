@@ -1,10 +1,11 @@
 #pragma once
 
 #include <boost/beast.hpp>
+#include <kitsune/ioc/service>
 #include <string>
 
 namespace dasa::gliese::scanner::http::handler {
-	class RouteHandler {
+    class RouteHandler : public kitsune::ioc::ServiceBase<RouteHandler> {
 	public:
 	    virtual ~RouteHandler() = default;
 		[[nodiscard]] virtual boost::beast::http::verb method() const = 0;

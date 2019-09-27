@@ -1,6 +1,7 @@
 #include "status.hpp"
-#include "handlers.hpp"
 #include "../../application.hpp"
+
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::StatusHandler, statusHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 
