@@ -4,6 +4,7 @@ if (MSVC OR MSYS OR MINGW)
 # elseif(APPLE)
 else()
     add_executable(gliese-scanner application_linux.cpp application_linux.hpp)
+    target_link_libraries(gliese-scanner PRIVATE pthread)
 endif()
 
 if (APPLE)
@@ -35,5 +36,5 @@ target_link_libraries(gliese-scanner PRIVATE nlohmann_json::nlohmann_json
     kitsune::ioc
     loguru
     ${ZLIB_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY})
+    Boost::system
+    Boost::filesystem)

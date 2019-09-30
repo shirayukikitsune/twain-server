@@ -283,7 +283,7 @@ bool Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
     memset(&ui, 0, sizeof(TW_USERINTERFACE));
 
     ui.ShowUI = showUI;
-    ui.ModalUI = TRUE;
+    ui.ModalUI = 1;
     ui.hParent = handle;
 
     auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
@@ -601,10 +601,11 @@ void Twain::DSM_UnlockMemory(TW_HANDLE memory)
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
-    os << "Device " << reinterpret_cast<std::ptrdiff_t>(identity.Id);
 #ifdef __APPLE__
+    os << "Device " << reinterpret_cast<std::ptrdiff_t>(identity.Id);
     if (identity.Id != nullptr) {
 #else
+    os << "Device " << static_cast<std::ptrdiff_t>(identity.Id);
     if (identity.Id != 0) {
 #endif
         os << ": " << identity.Manufacturer << ", " << identity.ProductName << ", " << identity.ProductFamily;
@@ -616,7 +617,11 @@ std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
 
 nlohmann::json deviceToJson(TW_IDENTITY device) {
 	nlohmann::json deviceJson;
+#ifdef __APPLE__
 	deviceJson["id"] = reinterpret_cast<unsigned long>(device.Id);
+#else
+    deviceJson["id"] = static_cast<unsigned long>(device.Id);
+#endif
 	deviceJson["productName"] = reinterpret_cast<char*>(device.ProductName);
 	deviceJson["manufacturer"] = reinterpret_cast<char*>(device.Manufacturer);
 	deviceJson["productFamily"] = reinterpret_cast<char*>(device.ProductFamily);

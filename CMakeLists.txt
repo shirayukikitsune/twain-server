@@ -6,8 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Boost REQUIRED filesystem system)
-link_directories(${Boost_LIBRARY_DIRS})
+find_package(Boost 1.71.0 REQUIRED filesystem system)
 
 add_subdirectory(deps)
 add_subdirectory(src)
