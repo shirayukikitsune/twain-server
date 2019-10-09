@@ -1,19 +1,19 @@
 if (MSVC OR MSYS OR MINGW)
-    add_executable(gliese-scanner application_windows.cpp application_windows.hpp)
-    target_compile_definitions(gliese-scanner PUBLIC UNICODE=1)
-# elseif(APPLE)
+    add_executable(twain-server application_windows.cpp application_windows.hpp)
+    target_compile_definitions(twain-server PUBLIC UNICODE=1)
 else()
-    add_executable(gliese-scanner application_linux.cpp application_linux.hpp)
-    target_link_libraries(gliese-scanner PRIVATE pthread)
+    add_executable(twain-server application_linux.cpp application_linux.hpp)
+    target_link_libraries(twain-server PRIVATE pthread)
 endif()
 
+# In OSX, TWAIN library is a framework that must be statically linked
 if (APPLE)
     find_library(TWAIN_LIBRARY TWAIN)
     mark_as_advanced(TWAIN_LIBRARY)
-    target_link_libraries(gliese-scanner PRIVATE ${TWAIN_LIBRARY})
+    target_link_libraries(twain-server PRIVATE ${TWAIN_LIBRARY})
 endif()
 
-target_sources(gliese-scanner PUBLIC
+target_sources(twain-server PUBLIC
         external/twain.h
         application.cpp application.hpp
         twain.cpp twain.hpp
@@ -30,9 +30,9 @@ target_sources(gliese-scanner PUBLIC
         twain/memory_transfer.cpp twain/memory_transfer.hpp
         twain/native_transfer.cpp twain/native_transfer.hpp)
 
-target_compile_definitions(gliese-scanner PUBLIC LOGURU_WITH_STREAMS=1)
-target_include_directories(gliese-scanner PUBLIC ${Boost_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/loguru)
-target_link_libraries(gliese-scanner PRIVATE nlohmann_json::nlohmann_json
+target_compile_definitions(twain-server PUBLIC LOGURU_WITH_STREAMS=1)
+target_include_directories(twain-server PUBLIC ${Boost_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/loguru)
+target_link_libraries(twain-server PRIVATE nlohmann_json::nlohmann_json
     kitsune::ioc
     loguru
     ${ZLIB_LIBRARY}
