@@ -1,66 +1,66 @@
-# POC Scanner para Gliese
+# Twain Server
 
-Este projeto é uma POC para o Gliese, que adiciona suporte para integração com scanner dentro de uma página web.adiciona
+This project exposes the TWAIN DSM as a web API.
 
-Para que haja a integração, é necessário que o navegador tenha acesso ao scanner do usuário, que não é possível sem um
-agente integrador. Este agente cria um serviço em background no computador do usuário, que cria um servidor HTTP.
+This is intended to enable users to access scanners directly from their web browsers, which is not possible with the
+current JavaScript API. This agent starts a background service, which exposes the TWAIN DSM to the browser as a HTTP
+server (bound to _localhost_ address).
 
-Este servidor HTTP expõe rotas que darão acesso ao scanner, como listar dispositivos, iniciar escaneamento, etc.
+## Compiling
 
-## Compilar
-
-É necessário um compilador com suporte ao C++17. Compiladores testados:
+It is required a C++17 compiler. Tested compilers:
 
 - Microsoft Visual C++ 2017 (toolset 14.1)
 - Microsoft Visual C++ 2019 (toolset 14.2)
 - GNU C++ Compiler (g++) 8.3.0
 - clang 8.0.0
 
-### Pré-requisitos
+### Pre-requisites
 
-Para compilar, além do compilador, é necessário ter o CMake instalado.
-A versão mínima necessária é o 3.7.
+In order to compile, CMake is also required. The minimum version required is 3.7.
 
-### Bibliotecas
+### Dependencies
 
 * [Boost 1.71](https://boost.org)
-* [Loguru](https://github.com/emilk/loguru) (incluído como submódulo)
-* [Nlohmann JSON](https://github.com/nlohmann/json) (incluído como submódulo)
-* [Kitsune IOC](https://github.com/shirayukikitsune/ioc) (incluído como submódulo)
+* [Loguru](https://github.com/emilk/loguru) (included as submodule)
+* [Nlohmann JSON](https://github.com/nlohmann/json) (included as submodule)
+* [Kitsune IOC](https://github.com/shirayukikitsune/ioc) (included as submodule)
 
-Para baixar as dependências incluídas:
+To download the included dependencies:
 
-* **Durante o `git clone`**: Utilizar o comando `git clone <repo> --recurse-submodules`
-* **Após o `git clone`**: Utilizar o comando `git submodule update --init --recursive` a partir da raíz do projeto (o local onde está este arquivo)
+* **During cloning**: Use the command `git clone <repo> --recurse-submodules`
+* **If the repository is alredy cloned**: Use the command `git submodule update --init --recursive` from the project root
 
-### Preparação da compilação
+### Before compilation
 
-O CMake restringe builds in-place (builds executando na raiz do projeto).
-Portanto, será necessário criar um diretório para executar o build.
-Nos *NIX, basta executar este comando, a partir da raiz do projeto: `mkdir build`
-No Windows, pela linha de comando: `md build`
+The recommended way to run CMake is outside the project root.
+If you are using Linux or Mac OSX, follow the steps below.
+For Visual Studio, please check the section below. 
 
-Feito isso, executar o CMake para gerar o cache:
+First, create a directory for our build (for example, **build**):
+
+```
+mkdir build
+```
+
+Then let CMake generate its cache:
 
 ```
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=Release . -B build
 ```
 
 #### Visual Studio
 
-O Visual Studio 2017 ou mais recente suportam diretamente o CMake.
-Basta abrir o diretório onde se encontra o CMakeLists.txt na IDE.
+Visual Studio 2017 or later has internal support for CMake.
+All you need is to open the root project folder in your IDE.
 
-Mas também é possível gerar uma solução pelo CMake. Para isso:
-* 32-bits: `cmake -DCMAKE_BUILD_TYPE=Release .. -G "Visual Studio 15 2017" -A Win32`
-* 64-bits: `cmake -DCMAKE_BUILD_TYPE=Release .. -G "Visual Studio 15 2017" -A x64`
+If you need to generate VS solutions, then you can use CMake-GUI or the command line equivalent.
 
-Ou então, pode utilizar o CMake-GUI.
+### Compiling
 
-### Compilando
+In order to compile, just instruct CMake to do so with the following command:
 
-Para compilar, basta entrar no diretório `build` e executar o seguinte comando:
-`cmake --build . --target gliese-scanner`  
-
-Isso irá gerar o arquivo executável final.
+```
+cmake --build build --target twain-server
+```  
