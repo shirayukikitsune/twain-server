@@ -1,0 +1,11 @@
+elif grep "Ubuntu 18.04" /etc/lsb-release &> /dev/null; then
+        export BOLD="^[[1m"
+        export NORM="^[[0m"
+        export ECHO="/bin/echo -e"
+        ${ECHO} "Distro:      ${BOLD}Ubuntu 18.04${NORM}"
+        export OSNAME="ubuntu"
+        export OSDIR="ubuntu_1804"
+        export OSDIRRPM="suse_1201"
+        export DSMBASE="twaindsm_${DSMMAJOR}.${DSMMINOR}.${DSMBUILD}"
+        export DSMBASERPM="twaindsm-${DSMMAJOR}.${DSMMINOR}.${DSMBUILD}"
+        export DEBUILD="debuild -d --no-tgz-check -us -uc"

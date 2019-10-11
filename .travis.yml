@@ -1,0 +1,22 @@
+language: cpp
+cache: ccache
+compiler: gcc
+
+os:
+  - linux
+#  - osx
+#  - windows
+
+dist: bionic
+osx_image: xcode11.2
+
+install:
+  #- if [[ "$TRAVIS_OS_NAME" = "linux" ]]; then ./.travis/install_twain_dsm.sh ; fi
+  - ./.travis/install_twain_dsm.sh
+  - ./.travis/install_boost.sh
+
+script:
+  - mkdir build
+  - cd build
+  - cmake ..
+  - make -j4
