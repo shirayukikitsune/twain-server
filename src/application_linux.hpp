@@ -22,16 +22,18 @@
 
 namespace dasa::gliese::scanner::linux
 {
+    /**
+     * Linux and MacOS specific application code
+     */
     class Application : public dasa::gliese::scanner::Application {
     public:
         void initialize(std::shared_ptr<http::Listener> listener) override;
         void run() override;
-        void stop() { shouldRun = false; }
+        void stop() override;
 
         Twain& getTwain() override { return twain; }
 
     private:
-        bool shouldRun = true;
         Twain twain;
     };
 } // namespace dasa::gliese::scanner::linux

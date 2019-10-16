@@ -54,7 +54,19 @@ void Application::run() {
 
     listener->start();
 
-    ioc.run();
+    auto thread = std::thread([this] {
+        ioc.run();
+    });
+
+    twain_ioc.run();
+
+    thread.join();
+}
+
+void Application::stop() {
+    listener->stop();
+    ioc.stop();
+    twain_ioc.stop();
 }
 
 int main(int argc, char **argv) {

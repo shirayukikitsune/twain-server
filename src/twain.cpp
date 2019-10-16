@@ -66,6 +66,8 @@ void Twain::fillIdentity() {
     strncpy(reinterpret_cast<char*>(identity.ProductName), "Scanner Integration", 32);
 }
 
+void twainListen();
+
 void Twain::loadDSM(const char *path) {
     if (state > 1) {
         LOG_S(WARNING) << "Trying to load DSM library when it is already loaded";
@@ -99,6 +101,16 @@ void Twain::loadDSM(const char *path) {
 #endif
 #endif
     state = 2;
+
+    twainListen();
+}
+
+void twainListen() {
+    boost::asio::post(application->getTwainIoContext(), [] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        twainListen();
+    });
 }
 
 void Twain::openDSM() {
@@ -183,9 +195,9 @@ TW_IDENTITY Twain::getDefaultDataSource() {
     return current;
 }
 
-TW_STATUS Twain::getStatus(TW_UINT16) {
-    TW_STATUS twStatus;
-    memset(&twStatus, 0, sizeof(TW_STATUS));
+TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
+    TW_STATUSUTF8 twStatus;
+    memset(&twStatus, 0, sizeof(TW_STATUSUTF8));
 
     if (state < 3) {
         LOG_S(ERROR) << "Trying to get status when DSM is not active";
@@ -218,11 +230,7 @@ static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT
     return TWRC_SUCCESS;
 }
 
-#ifdef __APPLE__
-bool Twain::loadDataSource(TW_MEMREF id) {
-#else
-bool Twain::loadDataSource(TW_UINT32 id) {
-#endif
+bool Twain::loadDataSource(TW_ID id) {
     if (state < 3) {
         LOG_S(ERROR) << "Trying to load DS when DSM is not active";
         return false;
@@ -292,45 +300,57 @@ bool Twain::loadDataSource(TW_UINT32 id) {
     return true;
 }
 
-bool Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
-    if (state < 4) {
+void handleEnableDS(TW_HANDLE handle, bool showUI);
+
+void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
+    boost::asio::post(application->getTwainIoContext(), std::bind(&handleEnableDS, handle, showUI));
+}
+
+void handleEnableDS(TW_HANDLE handle, bool showUI) {
+    auto& twain = application->getTwain();
+    if (twain.getState() < 4) {
         LOG_S(ERROR) << "Trying to enable DS but it was not opened";
-        return false;
+        return;
     }
 
+    TW_USERINTERFACE ui;
     memset(&ui, 0, sizeof(TW_USERINTERFACE));
 
     ui.ShowUI = showUI;
     ui.ModalUI = 1;
     ui.hParent = handle;
 
-    auto resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+    auto resultCode = twain.entry(twain.getIdentity(), twain.getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
     if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
         LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
-        return false;
+        return;
     }
 
-    state = 5;
-    return true;
+    if (twain.getState() == 4) {
+        twain.setState(5);
+    }
 }
 
 bool Twain::closeDS() {
-    if (state < 4) {
-        LOG_S(ERROR) << "Trying to close DS but it was not opened";
-        return false;
-    }
+    boost::asio::post(application->getTwainIoContext(), [this] {
+        if (state < 4) {
+            LOG_S(ERROR) << "Trying to close DS but it was not opened";
+            return false;
+        }
 
-    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
+        auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS,
+                                reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
-    if (resultCode != TWRC_SUCCESS) {
-        LOG_S(ERROR) << "Failed to close DS";
-        return false;
-    }
+        if (resultCode != TWRC_SUCCESS) {
+            auto status = getStatus(resultCode);
+            LOG_S(ERROR) << "Failed to close DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
+        }
 
-    state = 3;
-    LOG_S(INFO) << "DS closed";
-    currentDS = nullptr;
-    return true;
+        state = 3;
+        LOG_S(INFO) << "DS closed";
+        currentDS.release();
+        return true;
+    });
 }
 
 TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) {
@@ -444,8 +464,7 @@ std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan() {
 
     //setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
 
-    TW_CAPABILITY xferCap;
-    xferCap.Cap = ICAP_XFERMECH;
+    TW_CAPABILITY xferCap = {ICAP_XFERMECH, 0, nullptr };
     auto rc = getCapability(xferCap);
     TW_UINT32 mech;
 

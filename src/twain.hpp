@@ -30,13 +30,50 @@
 
 namespace dasa::gliese::scanner {
 
+    /**
+     * Class that interfaces with the TWAIN DSM
+     *
+     * The DSM is a FSM, so we replicate it here. States are all integers, in range [1; 7].
+     * Please refer to the TWAIN DSM reference for more details
+     */
     class Twain {
     public:
         ~Twain();
 
+        // TWAIN in MacOS uses an uintptr_t for the ID, instead of an integer. We typedef that to avoid several #ifdefs
+        /// The type of a device identifier
+        typedef decltype(TW_IDENTITY::Id) TW_ID;
+
+        /**
+         * Fills the application identity struct
+         */
         void fillIdentity();
+
+        /**
+         * @brief Loads the DSM library from the specified path
+         *
+         * If the state is 2 or greater, this method does nothing
+         * If the state is 1, loads the library and state goes to 2
+         *
+         * @remark On MacOS this method does nothing, since the DSM is statically linked
+         * @param path The path to the library
+         */
         void loadDSM(const char *path);
+
+        /**
+         * @brief Opens a connection to the DSM
+         *
+         * If the state is 3 or greater, this method does nothing
+         * If the state is 1, abort() is called
+         * If the state is 2, then the connection is opened and state goes to 3
+         *
+         * @remark If the connection fails, then the state continues to be 2
+         */
         void openDSM();
+
+        /**
+         * @brief Closes the DSM connection
+         */
         void closeDSM();
         int getState() { return state; }
         void setState(int newState) { state = newState; }
@@ -50,14 +87,10 @@ namespace dasa::gliese::scanner {
 
         DSMENTRYPROC entry;
 
-        TW_STATUS getStatus(TW_UINT16 rc);
+        TW_STATUSUTF8 getStatus(TW_UINT16 rc);
 
-#ifdef __APPLE__
-        bool loadDataSource(TW_MEMREF id);
-#else
-        bool loadDataSource(TW_UINT32 id);
-#endif
-        bool enableDataSource(TW_HANDLE handle, bool showUI);
+        bool loadDataSource(TW_ID id);
+        void enableDataSource(TW_HANDLE handle, bool showUI);
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
         bool closeDS();
 
@@ -73,10 +106,11 @@ namespace dasa::gliese::scanner {
         TW_MEMREF DSM_LockMemory(TW_HANDLE memory);
         void DSM_UnlockMemory(TW_HANDLE memory);
 
+        pTW_IDENTITY getCurrentDS() { return currentDS.get(); }
+
     private:
         TW_IDENTITY identity{};
         TW_ENTRYPOINT entrypoint{};
-        TW_USERINTERFACE ui{};
 #ifdef TWH_CMP_MSC
         HMODULE
 #else

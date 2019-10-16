@@ -111,7 +111,7 @@ void Application::run() {
     ioc.stop();
 }
 
-/*int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
 	int argc;
 	auto wargv = CommandLineToArgvW(pCmdLine, &argc);
 	char** argv = new char* [argc + 1];
@@ -121,14 +121,14 @@ void Application::run() {
 		argv[i][bufSize] = '\0';
 		WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, argv[i], bufSize, nullptr, nullptr);
 	}
-    argv[argc] = nullptr;*/
-int main(int argc, char **argv) {
+    argv[argc] = nullptr;
+
     loguru::init(argc, argv, "-v");
 
-	/*for (int i = 0; i < argc; ++i) {
+	for (int i = 0; i < argc; ++i) {
 		delete[] argv[i];
 	}
-	delete[] argv;*/
+	delete[] argv;
 
 	windows_application = new Application;
 	application = windows_application;

@@ -34,14 +34,14 @@ typedef struct tagBITMAPINFOHEADER {
     int32_t  biYPelsPerMeter;
     uint32_t biClrUsed;
     uint32_t biClrImportant;
-} BITMAPINFOHEADER, *PBITMAPINFOHEADER;
+} __attribute__((packed)) BITMAPINFOHEADER, *PBITMAPINFOHEADER;
 
 typedef struct tagRGBQUAD {
     uint8_t rgbBlue;
     uint8_t rgbGreen;
     uint8_t rgbRed;
     uint8_t rgbReserved;
-} RGBQUAD;
+} __attribute__((packed)) RGBQUAD;
 
 typedef struct tagBITMAPFILEHEADER {
     uint16_t bfType;
@@ -49,7 +49,7 @@ typedef struct tagBITMAPFILEHEADER {
     uint16_t bfReserved1;
     uint16_t bfReserved2;
     uint32_t bfOffBits;
-} BITMAPFILEHEADER;
+} __attribute__((packed)) BITMAPFILEHEADER;
 #endif
 
 TW_IMAGEINFO NativeTransfer::prepare() {
@@ -69,6 +69,9 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
 	TW_MEMREF hImg = nullptr;
 
+	LOG_S(INFO) << "Sizeof BITMAPINFOHEADER: " << sizeof(BITMAPINFOHEADER);
+	LOG_S(INFO) << "Sizeof BITMAPFILEHEADER: " << sizeof(BITMAPFILEHEADER);
+
 	LOG_S(INFO) << "Starting transfer";
 	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
 
@@ -81,7 +84,7 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 		return false;
 	}
 	if (rc == TWRC_XFERDONE) {
-		PBITMAPINFOHEADER pDIB = (PBITMAPINFOHEADER)twain->DSM_LockMemory(reinterpret_cast<TW_HANDLE>(hImg));
+		auto pDIB = (PBITMAPINFOHEADER)twain->DSM_LockMemory(reinterpret_cast<TW_HANDLE>(hImg));
 		if (!pDIB) {
 			LOG_S(ERROR) << "Failed to lock memory";
 			return false;
@@ -114,10 +117,10 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 			}
 		}
 
-		int nImageSize = pDIB->biSizeImage + (sizeof(RGBQUAD) * paletteSize) + sizeof(BITMAPINFOHEADER);
+		uint64_t nImageSize = pDIB->biSizeImage + (sizeof(RGBQUAD) * paletteSize) + sizeof(BITMAPINFOHEADER);
 
 		BITMAPFILEHEADER bmpFIH = { 0 };
-		bmpFIH.bfType = ((uint16_t)('M' << 8U) | 'B');
+		bmpFIH.bfType = 0x4d42;
 		bmpFIH.bfSize = nImageSize + sizeof(BITMAPFILEHEADER);
 		bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD) * paletteSize);
 

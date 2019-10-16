@@ -104,9 +104,7 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		twain.setCapability(ICAP_XRESOLUTION, &res);
 	}
 
-	if (!twain.enableDataSource(application->getParentWindow(), false)) {
-		return makeErrorResponse(bh::status::internal_server_error, "Failed to enable DS", request);
-	}
+    twain.enableDataSource(application->getParentWindow(), false);
 
 	// wait for ready
 	while (twain.getState() != 6) {
