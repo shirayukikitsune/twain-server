@@ -68,6 +68,7 @@ void Application::run() {
     listener->start();
 
     std::thread ioThread([&] { ioc.run(); });
+    std::thread twainThread([&] { twain_ioc.run(); });
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))

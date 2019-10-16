@@ -1,5 +1,5 @@
 if (MSVC OR MSYS OR MINGW)
-    add_executable(twain-server application_windows.cpp application_windows.hpp)
+    add_executable(twain-server WIN32 application_windows.cpp application_windows.hpp)
     target_compile_definitions(twain-server PUBLIC UNICODE=1)
 else()
     add_executable(twain-server application_linux.cpp application_linux.hpp)
@@ -32,9 +32,11 @@ target_sources(twain-server PUBLIC
 
 target_compile_definitions(twain-server PUBLIC LOGURU_WITH_STREAMS=1)
 target_include_directories(twain-server PUBLIC ${Boost_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/loguru)
+target_link_directories(twain-server PUBLIC ${Boost_LIBRARY_DIR_DEBUG})
 target_link_libraries(twain-server PRIVATE nlohmann_json::nlohmann_json
     kitsune::ioc
     loguru
     ${ZLIB_LIBRARY}
+    Boost::date_time
     Boost::system
     Boost::filesystem)

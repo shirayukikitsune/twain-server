@@ -332,14 +332,13 @@ void handleEnableDS(TW_HANDLE handle, bool showUI) {
 }
 
 bool Twain::closeDS() {
-    boost::asio::post(application->getTwainIoContext(), [this] {
-        if (state < 4) {
-            LOG_S(ERROR) << "Trying to close DS but it was not opened";
-            return false;
-        }
+    if (state < 4) {
+        LOG_S(ERROR) << "Trying to close DS but it was not opened";
+        return false;
+    }
 
-        auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS,
-                                reinterpret_cast<TW_MEMREF>(currentDS.get()));
+    boost::asio::post(application->getTwainIoContext(), [this] {
+        auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
         if (resultCode != TWRC_SUCCESS) {
             auto status = getStatus(resultCode);
@@ -349,8 +348,9 @@ bool Twain::closeDS() {
         state = 3;
         LOG_S(INFO) << "DS closed";
         currentDS.release();
-        return true;
     });
+
+    return true;
 }
 
 TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) {
@@ -462,7 +462,7 @@ std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan() {
         return nullptr;
     }
 
-    //setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
+    setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
 
     TW_CAPABILITY xferCap = {ICAP_XFERMECH, 0, nullptr };
     auto rc = getCapability(xferCap);
