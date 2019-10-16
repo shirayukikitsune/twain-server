@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+cd $TRAVIS_BUILD_DIR
+
 sudo apt install build-essential cmake debhelper devscripts qt4-qmake libqt4-dev libfreeimage-dev -y
 
 git clone https://github.com/twain/twain-dsm.git
@@ -8,12 +10,13 @@ git clone https://github.com/twain/twain-dsm.git
 cd twain-dsm
 mv mkdsm.sh mkdsm.sh~
 head -n96 mkdsm.sh~ > mkdsm.sh
-cat ../ubuntu18.04-mkdsm-patch >> mkdsm.sh
+cat ../.travis/ubuntu18.04-mkdsm-patch >> mkdsm.sh
 tail -n +97 mkdsm.sh~ >> mkdsm.sh
 sed -i '204d' mkdsm.sh
 sed -i '203d' mkdsm.sh
 sed -i '185d' mkdsm.sh
 chmod +x ./mkdsm.sh
+rm ./mkdsm.sh~
 
 # Set deb compatibility to 9
 echo "9" > TWAIN_DSM/debian/compats
@@ -34,6 +37,7 @@ mv common/Common.h common/Common.h~
 head -n208 common/Common.h~ > common/Common.h
 echo "#include <unistd.h>" >> common/Common.h
 tail -n +209 common/Common.h~ >> common/Common.h
+rm 
 
 cd Twain_DS_sample01/
 qmake -makefile TWAINDS_sample01.pro
