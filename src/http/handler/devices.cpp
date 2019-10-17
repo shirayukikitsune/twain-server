@@ -20,10 +20,11 @@
 #include "../../application.hpp"
 
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 
-using dasa::gliese::scanner::http::handler::DevicesHandler;
+using namespace dasa::gliese::scanner::http::handler;
 using nlohmann::json;
 namespace bh = boost::beast::http;
 
@@ -43,8 +44,29 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
     bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
 	res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	res.set(bh::field::content_type, "application/json");
+
+	auto origin = request[bh::field::origin];
+	if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+    }
 	res.keep_alive(request.keep_alive());
 	boost::beast::ostream(res.body()) << response;
 	res.prepare_payload();
 	return res;
+}
+
+bh::response<bh::dynamic_body> DevicesCORSHandler::operator()(bh::request<bh::string_body>&& request) {
+    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+        res.set(bh::field::access_control_allow_methods, "GET");
+        res.set(bh::field::access_control_allow_headers, "Server, Content-Type");
+    }
+
+    res.keep_alive(request.keep_alive());
+    res.prepare_payload();
+    return res;
 }

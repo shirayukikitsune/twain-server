@@ -43,4 +43,5 @@ namespace dasa::gliese::scanner::http::handler {
     typedef RequestMapping<boost::beast::http::verb::post> PostMapping;
     typedef RequestMapping<boost::beast::http::verb::put> PutMapping;
     typedef RequestMapping<boost::beast::http::verb::delete_> DeleteMapping;
+    typedef RequestMapping<boost::beast::http::verb::options> OptionsMapping;
 }

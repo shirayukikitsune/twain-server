@@ -24,12 +24,17 @@
 #include <loguru.hpp>
 #include <thread>
 
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::PrepareScanHandler, prepareScanHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextImageDataScanHandler, nextImageDataScanHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::HasNextScanHandler, hasNextScanHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextScanHandler, nextScanHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::EndScanHandler, endScanHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::ScanHandler, scanHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::PrepareScanHandler, prepareScanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextImageDataScanHandler, nextImageDataScanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::HasNextScanHandler, hasNextScanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextScanHandler, nextScanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::EndScanHandler, endScanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::ScanHandler, scanHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::PrepareScanCORSHandler, prepareScanCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextImageDataScanCORSHandler, nextImageDataScanCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::HasNextScanCORSHandler, hasNextScanCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextScanCORSHandler, nextScanCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::EndScanCORSHandler, endScanCorsHandlerInjectable)
 
 extern dasa::gliese::scanner::Application *application;
 
@@ -42,6 +47,22 @@ static bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const
     res.set(bh::field::content_type, "text/plain");
     res.keep_alive(request.keep_alive());
     boost::beast::ostream(res.body()) << message;
+    res.prepare_payload();
+    return res;
+}
+
+static bh::response<bh::dynamic_body> makeCORSResponse(const bh::request<bh::string_body> &request) {
+    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+        res.set(bh::field::access_control_allow_methods, "GET, POST");
+        res.set(bh::field::access_control_allow_headers, "Server, Content-Type, x-has-next");
+    }
+
+    res.keep_alive(request.keep_alive());
     res.prepare_payload();
     return res;
 }
@@ -111,8 +132,12 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
-	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
+	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
 
 	return response;
 }
@@ -129,6 +154,31 @@ bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::st
 
 	response.prepare_payload();
 	return response;
+}
+
+bh::response<bh::dynamic_body> PrepareScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
+}
+
+bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    if (!transfer) {
+        return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
+    }
+
+    bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
+    response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+    response.set(bh::field::content_type, "application/json");
+
+    nlohmann::json body;
+    body["hasNext"] = transfer->hasPending();
+
+    boost::beast::ostream(response.body()) << body.dump();
+    response.prepare_payload();
+    return response;
+}
+
+bh::response<bh::dynamic_body> HasNextScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
 }
 
 bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<bh::string_body>&& request) {
@@ -159,21 +209,8 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	return response;
 }
 
-bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::string_body>&& request) {
-	if (!transfer) {
-		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
-	}
-
-	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
-	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-	response.set(bh::field::content_type, "application/json");
-
-	nlohmann::json body;
-	body["hasNext"] = transfer->hasPending();
-
-	boost::beast::ostream(response.body()) << body.dump();
-	response.prepare_payload();
-	return response;
+bh::response<bh::dynamic_body> NextImageDataScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
 }
 
 bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::string_body>&& request) {
@@ -201,6 +238,10 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 	return response;
 }
 
+bh::response<bh::dynamic_body> NextScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
+}
+
 bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string_body>&& request) {
 	if (!transfer) {
 		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
@@ -218,6 +259,10 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
 
 	response.prepare_payload();
 	return response;
+}
+
+bh::response<bh::dynamic_body> EndScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
 }
 
 bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_body>&& request) {
