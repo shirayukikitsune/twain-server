@@ -48,7 +48,7 @@ void Session::loop(bool close, boost::beast::error_code ec, std::size_t bytesTra
             }
 
             if (ec) {
-                if (ec != boost::asio::error::timed_out) {
+                if (ec != boost::beast::error::timeout) {
                     LOG_S(ERROR) << "Failed to read from HTTP session: " << ec.message();
                 }
                 return;
