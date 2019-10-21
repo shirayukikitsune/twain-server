@@ -35,6 +35,7 @@ KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gli
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::HasNextScanCORSHandler, hasNextScanCorsHandlerInjectable)
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::NextScanCORSHandler, nextScanCorsHandlerInjectable)
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::EndScanCORSHandler, endScanCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::ScanCORSHandler, scanCorsHandlerInjectable)
 
 extern dasa::gliese::scanner::Application *application;
 
@@ -151,6 +152,10 @@ bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::st
 	if (twain.getState() == 6) {
 		transfer = twain.startScan();
 	}
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
 
 	response.prepare_payload();
 	return response;
@@ -168,6 +173,10 @@ bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::st
     bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
     response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
     response.set(bh::field::content_type, "application/json");
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
 
     nlohmann::json body;
     body["hasNext"] = transfer->hasPending();
@@ -189,6 +198,10 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	response.set(bh::field::content_type, "application/json");
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
 
 	auto imageInfo = transfer->prepare();
 	nlohmann::json body;
@@ -200,7 +213,7 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	body["length"] = imageInfo.ImageLength;
 	body["width"] = imageInfo.ImageWidth;
 	body["pixelType"] = imageInfo.PixelType;
-	body["planar"] = imageInfo.Planar;
+	body["planar"] = imageInfo.Planar != 0;
 	body["samplesPerPixel"] = imageInfo.SamplesPerPixel;
 	body["xResolution"] = imageInfo.XResolution.Whole;
 	body["yResolution"] = imageInfo.YResolution.Whole;
@@ -226,7 +239,12 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-	response.set(bh::field::content_type, "image/bmp");
+	response.set(bh::field::content_type, transfer->getTransferMIME());
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
+
 	auto os = boost::beast::ostream(response.body());
 
 	transfer->transferOne(os);
@@ -249,11 +267,16 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
 
 	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        response.set(bh::field::access_control_allow_origin, origin);
+    }
 
 	transfer->clearPending();
 	transfer->end();
 
 	auto& twain = application->getTwain();
+	twain.disableDS();
 	twain.closeDS();
 	transfer = nullptr;
 
@@ -270,9 +293,13 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
 	auto& twain = application->getTwain();
 
     if (twain.getState() == 6) {
-        response.set(bh::field::content_type, "image/bmp");
+        auto origin = request[bh::field::origin];
+        if (!origin.empty()) {
+            response.set(bh::field::access_control_allow_origin, origin);
+        }
         auto os = boost::beast::ostream(response.body());
         transfer = twain.startScan();
+        response.set(bh::field::content_type, "image/jpeg");
 		transfer->transferAll(os);
     }
 
@@ -282,4 +309,8 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
 
     response.prepare_payload();
     return response;
+}
+
+bh::response<bh::dynamic_body> ScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
+    return makeCORSResponse(request);
 }
