@@ -72,6 +72,7 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
         FreeImage_SaveToMemory(format, bitmap, output);
         FreeImage_CloseMemory(image);
+        FreeImage_SeekMemory(output, 0, SEEK_SET);
 
         BYTE* buf;
         DWORD bufSize;
@@ -89,7 +90,7 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 }
 
 std::string NativeTransfer::getTransferMIME() {
-    return outputMime;
+    return outputMime == "*/*" ? getDefaultMIME() : outputMime;
 }
 
 std::string NativeTransfer::getDefaultMIME() {
