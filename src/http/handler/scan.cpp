@@ -123,7 +123,7 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		TW_FIX32 res;
 		res.Frac = 0;
 		res.Whole = (TW_INT16)body["resolution"]["y"];
-		twain.setCapability(ICAP_XRESOLUTION, &res);
+		twain.setCapability(ICAP_YRESOLUTION, &res);
 	}
 
     twain.enableDataSource(application->getParentWindow(), false);
