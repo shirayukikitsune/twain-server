@@ -126,6 +126,16 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		twain.setCapability(ICAP_YRESOLUTION, &res);
 	}
 
+	auto xferMode = body["transferMode"];
+	int twsx = TWSX_MEMORY;
+	if (xferMode.is_string()) {
+	    auto mode = (std::string)xferMode;
+	    if (mode == "native") {
+	        twsx = TWSX_NATIVE;
+	    }
+	}
+    twain.setCapability(ICAP_XFERMECH, twsx, TWTY_UINT16);
+
     twain.enableDataSource(application->getParentWindow(), false);
 
 	// wait for ready
