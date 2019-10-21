@@ -87,7 +87,10 @@ void Application::run() {
 				{
 				case MSG_XFERREADY:
 					twain.setState(6);
+					break;
 				case MSG_CLOSEDSREQ:
+				    twain.disableDS();
+				    break;
 				case MSG_CLOSEDSOK:
 				case MSG_NULL:
 					LOG_S(INFO) << "Got message from DSM: " << twEvent.TWMessage;

@@ -25,6 +25,7 @@
 #include "../external/twain.h"
 
 #include <ostream>
+#include <utility>
 
 namespace dasa::gliese::scanner {
 	class Twain;
@@ -33,9 +34,12 @@ namespace dasa::gliese::scanner {
 namespace dasa::gliese::scanner::twain {
     class Transfer {
     public:
-		explicit Transfer(dasa::gliese::scanner::Twain* twain) : twain(twain) {}
+		Transfer(dasa::gliese::scanner::Twain* twain, std::string outputMime)
+		    : twain(twain), outputMime(std::move(outputMime)) {}
 		virtual ~Transfer() = default;
 
+		virtual std::string getTransferMIME() = 0;
+		virtual std::string getDefaultMIME() = 0;
 		virtual TW_IMAGEINFO prepare() = 0;
         void transferAll(std::ostream& outputStream);
 		virtual bool transferOne(std::ostream& outputStream) = 0;
@@ -48,5 +52,6 @@ namespace dasa::gliese::scanner::twain {
 	protected:
 		dasa::gliese::scanner::Twain* twain;
 		bool pendingTransfers = true;
+		std::string outputMime;
     };
 }

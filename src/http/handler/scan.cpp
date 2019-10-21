@@ -136,6 +136,16 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 	}
     twain.setCapability(ICAP_XFERMECH, twsx, TWTY_UINT16);
 
+	auto useDuplex = body["duplex"];
+	if (useDuplex.is_boolean()) {
+	    auto mode = (bool)useDuplex ? 1 : 0;
+	    twain.setCapability(CAP_DUPLEXENABLED, mode, TWTY_BOOL);
+	}
+
+	// Force LSB transfer
+	twain.setCapability(ICAP_BITORDER, TWBO_MSBFIRST, TWTY_UINT16);
+	twain.setCapability(ICAP_BITORDERCODES, TWBO_MSBFIRST, TWTY_UINT16);
+
     twain.enableDataSource(application->getParentWindow(), false);
 
 	// wait for ready
@@ -158,9 +168,10 @@ std::unique_ptr<dasa::gliese::scanner::twain::Transfer> transfer;
 bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::string_body>&& request) {
 	auto response = prepareScan(request);
 	auto& twain = application->getTwain();
+	auto outputMime = (std::string)request[bh::field::accept];
 
 	if (twain.getState() == 6) {
-		transfer = twain.startScan();
+		transfer = twain.startScan(outputMime);
 	}
     auto origin = request[bh::field::origin];
     if (!origin.empty()) {
@@ -303,16 +314,18 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
 	auto& twain = application->getTwain();
 
     if (twain.getState() == 6) {
+        auto outputMime = (std::string)request[bh::field::accept];
         auto origin = request[bh::field::origin];
         if (!origin.empty()) {
             response.set(bh::field::access_control_allow_origin, origin);
         }
         auto os = boost::beast::ostream(response.body());
-        transfer = twain.startScan();
+        transfer = twain.startScan(outputMime);
         response.set(bh::field::content_type, "image/jpeg");
 		transfer->transferAll(os);
     }
 
+    twain.disableDS();
     twain.closeDS();
 
     transfer = nullptr;

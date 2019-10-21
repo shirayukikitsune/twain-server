@@ -21,7 +21,7 @@ In order to compile, CMake is also required. The minimum version required is 3.7
 
 ### Dependencies
 
-* [Boost 1.71](https://boost.org)
+* [Boost 1.71](https://boost.org) (used libraries: ASIO, Beast - requires DateTime, FileSystem and System)
 * [Loguru](https://github.com/emilk/loguru) (included as submodule)
 * [Nlohmann JSON](https://github.com/nlohmann/json) (included as submodule)
 * [Kitsune IOC](https://github.com/shirayukikitsune/ioc) (included as submodule)
@@ -63,4 +63,4 @@ In order to compile, just instruct CMake to do so with the following command:
 
 ```
 cmake --build build --target twain-server
-```  
+```

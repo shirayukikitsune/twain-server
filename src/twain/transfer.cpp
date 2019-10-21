@@ -59,6 +59,7 @@ void Transfer::checkPending() {
 		if (pendingXfers.Count == 0) {
 			pendingTransfers = false;
 		}
+		twain->setState(6);
 	}
 	else {
 		pendingTransfers = false;
@@ -66,19 +67,15 @@ void Transfer::checkPending() {
 }
 
 void Transfer::clearPending() {
+    TW_PENDINGXFERS pendxfers;
 	if (pendingTransfers) {
-		TW_PENDINGXFERS pendxfers;
 		memset(&pendxfers, 0, sizeof(pendxfers));
 
 		twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, reinterpret_cast<TW_MEMREF>(&pendxfers));
-
-		// We need to get rid of any pending transfers
-		if (pendxfers.Count != 0) {
-			memset(&pendxfers, 0, sizeof(pendxfers));
-
-			twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, reinterpret_cast<TW_MEMREF>(&pendxfers));
-		}
 	}
+    memset(&pendxfers, 0, sizeof(pendxfers));
+
+    twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, reinterpret_cast<TW_MEMREF>(&pendxfers));
 
 	twain->setState(5);
 }

@@ -43,8 +43,13 @@ using dasa::gliese::scanner::Twain;
 using namespace dasa::gliese::scanner::exception;
 extern dasa::gliese::scanner::Application *application;
 
+Twain::Twain(boost::asio::io_context& context)
+        : context(context) {
+
+}
+
 Twain::~Twain() {
-    closeDSM();
+    shutdown();
 }
 
 void Twain::fillIdentity() {
@@ -111,6 +116,19 @@ void twainListen() {
 
         twainListen();
     });
+}
+
+void Twain::unloadDSM() {
+    if (state > 2) {
+        LOG_S(ERROR) << "Trying to unload DSM when it is open";
+        return;
+    }
+
+#ifdef __APPLE__
+    // On OSX we do nothing, since the library is statically linked
+#else
+    UNLOADLIBRARY(DSM);
+#endif
 }
 
 void Twain::openDSM() {
@@ -300,35 +318,29 @@ bool Twain::loadDataSource(TW_ID id) {
     return true;
 }
 
-void handleEnableDS(TW_HANDLE handle, bool showUI);
-
 void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
-    boost::asio::post(application->getTwainIoContext(), std::bind(&handleEnableDS, handle, showUI));
-}
+    boost::asio::post(application->getTwainIoContext(), [this, &handle, showUI] {
+        if (getState() < 4) {
+            LOG_S(ERROR) << "Trying to enable DS but it was not opened";
+            return;
+        }
 
-void handleEnableDS(TW_HANDLE handle, bool showUI) {
-    auto& twain = application->getTwain();
-    if (twain.getState() < 4) {
-        LOG_S(ERROR) << "Trying to enable DS but it was not opened";
-        return;
-    }
+        memset(&ui, 0, sizeof(TW_USERINTERFACE));
 
-    TW_USERINTERFACE ui;
-    memset(&ui, 0, sizeof(TW_USERINTERFACE));
+        ui.ShowUI = showUI;
+        ui.ModalUI = 1;
+        ui.hParent = handle;
 
-    ui.ShowUI = showUI;
-    ui.ModalUI = 1;
-    ui.hParent = handle;
+        auto resultCode = entry(getIdentity(), getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+        if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
+            LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
+            return;
+        }
 
-    auto resultCode = twain.entry(twain.getIdentity(), twain.getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
-    if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
-        LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
-        return;
-    }
-
-    if (twain.getState() == 4) {
-        twain.setState(5);
-    }
+        if (getState() == 4) {
+            setState(5);
+        }
+    });
 }
 
 bool Twain::closeDS() {
@@ -351,6 +363,25 @@ bool Twain::closeDS() {
     });
 
     return true;
+}
+
+void Twain::disableDS() {
+    if (state != 5) {
+        LOG_S(ERROR) << "Trying to disable DS but it was not enabled";
+        return;
+    }
+
+    //boost::asio::post(application->getTwainIoContext(), [this] {
+        auto resultCode = entry(getIdentity(), getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+
+        if (resultCode != TWRC_SUCCESS) {
+            auto status = getStatus(resultCode);
+            LOG_S(ERROR) << "Failed to disable DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
+        }
+
+        setState(4);
+        LOG_S(INFO) << "DS disabled";
+    //});
 }
 
 TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) {
@@ -425,7 +456,7 @@ typedef struct {
 	TW_FIX32   Item;
 } TW_ONEVALUE_FIX32, FAR* pTW_ONEVALUE_FIX32;
 
-TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue) {
+TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue) {
 	TW_INT16        twrc = TWRC_FAILURE;
 	TW_CAPABILITY   cap;
 
@@ -456,13 +487,11 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue) {
 	return twrc;
 }
 
-std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan() {
+std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std::string &outputMime) {
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
         return nullptr;
     }
-
-    setCapability(ICAP_XFERMECH, TWSX_MEMORY, TWTY_UINT16);
 
     TW_CAPABILITY xferCap = {ICAP_XFERMECH, 0, nullptr };
     auto rc = getCapability(xferCap);
@@ -479,9 +508,9 @@ std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan() {
     switch (mech)
     {
     case TWSX_MEMORY:
-        return std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this);
+        return std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, outputMime);
     case TWSX_NATIVE:
-        return std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this);
+        return std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this, outputMime);
     default:
         LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
         break;
@@ -635,6 +664,21 @@ void Twain::DSM_UnlockMemory(TW_HANDLE memory)
 #ifdef TWH_CMP_MSC
     ::GlobalUnlock(memory);
 #endif
+}
+
+void Twain::shutdown() noexcept {
+    if (getState() >= 5) {
+        this->disableDS();
+    }
+    if (getState() == 4) {
+        this->closeDS();
+    }
+    if (getState() == 3) {
+        this->closeDSM();
+    }
+    if (getState() == 2) {
+        this->unloadDSM();
+    }
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {

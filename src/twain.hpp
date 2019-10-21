@@ -28,6 +28,8 @@
 #include "external/twain.h"
 #include "twain/transfer.hpp"
 
+#include <boost/asio/execution_context.hpp>
+
 namespace dasa::gliese::scanner {
 
     /**
@@ -38,6 +40,7 @@ namespace dasa::gliese::scanner {
      */
     class Twain {
     public:
+        explicit Twain(boost::asio::io_context &context);
         ~Twain();
 
         // TWAIN in MacOS uses an uintptr_t for the ID, instead of an integer. We typedef that to avoid several #ifdefs
@@ -59,6 +62,11 @@ namespace dasa::gliese::scanner {
          * @param path The path to the library
          */
         void loadDSM(const char *path);
+
+        /**
+         * @brief Unloads the DSM library
+         */
+        void unloadDSM();
 
         /**
          * @brief Opens a connection to the DSM
@@ -90,16 +98,18 @@ namespace dasa::gliese::scanner {
         TW_STATUSUTF8 getStatus(TW_UINT16 rc);
 
         bool loadDataSource(TW_ID id);
+
         void enableDataSource(TW_HANDLE handle, bool showUI);
+
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
         bool closeDS();
-
-        bool isUsingCallbacks() { return useCallbacks; }
+        void disableDS();
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
-		TW_UINT16 setCapability(TW_UINT16 Cap, const pTW_FIX32 _pValue);
+		TW_UINT16 setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue);
+        TW_INT16 getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg = MSG_GET);
 
-        std::unique_ptr<dasa::gliese::scanner::twain::Transfer> startScan();
+        std::unique_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
 
         TW_HANDLE DSM_MemAllocate(TW_UINT32 size);
         void DSM_Free(TW_HANDLE memory);
@@ -111,6 +121,10 @@ namespace dasa::gliese::scanner {
     private:
         TW_IDENTITY identity{};
         TW_ENTRYPOINT entrypoint{};
+        TW_USERINTERFACE ui{};
+
+        boost::asio::io_context& context;
+
 #ifdef TWH_CMP_MSC
         HMODULE
 #else
@@ -120,12 +134,13 @@ namespace dasa::gliese::scanner {
         int state = 1;
         bool useCallbacks = false;
 
+        void shutdown() noexcept;
+
         std::unique_ptr<TW_IDENTITY> currentDS;
 
         static std::map<TW_UINT32, TW_MEMREF> map;
 
         bool getCurrent(TW_CAPABILITY *pCap, TW_UINT32& val);
-        TW_INT16 getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg = MSG_GET);
     };
 
 }

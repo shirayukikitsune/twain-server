@@ -35,6 +35,8 @@ extern "C" void trapStop(int signal) {
     }
 }
 
+Application::Application() : twain(getTwainIoContext()) {}
+
 void Application::initialize(std::shared_ptr<http::Listener> listener) {
     LOG_SCOPE_FUNCTION(INFO);
     LOG_S(INFO) << "Initializing linux application";

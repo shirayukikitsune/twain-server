@@ -18,9 +18,12 @@
 
 #include "devices.hpp"
 #include "../../application.hpp"
+#include <cstdlib>
 
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable);
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPIHandler, devicesDPIHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPICORSHandler, devicesDPICorsHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 
@@ -64,6 +67,54 @@ bh::response<bh::dynamic_body> DevicesCORSHandler::operator()(bh::request<bh::st
         res.set(bh::field::access_control_allow_origin, origin);
         res.set(bh::field::access_control_allow_methods, "GET");
         res.set(bh::field::access_control_allow_headers, "Server, Content-Type");
+    }
+
+    res.keep_alive(request.keep_alive());
+    res.prepare_payload();
+    return res;
+}
+
+bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
+	json response;
+	auto device = atoll(((std::string)request["x-device"]).c_str());
+	TW_CAPABILITY cap{ICAP_XRESOLUTION, 0, nullptr};
+	application->getTwain().loadDataSource(device);
+    application->getTwain().getCapability(cap);
+
+    if (cap.ConType == TWON_ENUMERATION) {
+        auto con = ((TW_ENUMERATION*)cap.hContainer);
+        for (unsigned i = 0; i < con->NumItems; ++i) {
+            auto res = reinterpret_cast<pTW_FIX32>(&con->ItemList)[i];
+            response[i] = res.Whole;
+        }
+    }
+
+    application->getTwain().DSM_Free(cap.hContainer);
+    application->getTwain().closeDS();
+
+    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+	res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+	res.set(bh::field::content_type, "application/json");
+
+	auto origin = request[bh::field::origin];
+	if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+    }
+	res.keep_alive(request.keep_alive());
+	boost::beast::ostream(res.body()) << response;
+	res.prepare_payload();
+	return res;
+}
+
+bh::response<bh::dynamic_body> DevicesDPICORSHandler::operator()(bh::request<bh::string_body>&& request) {
+    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+        res.set(bh::field::access_control_allow_methods, "GET");
+        res.set(bh::field::access_control_allow_headers, "Server, Content-Type, X-Device");
     }
 
     res.keep_alive(request.keep_alive());

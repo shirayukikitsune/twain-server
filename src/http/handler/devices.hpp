@@ -38,5 +38,23 @@ namespace dasa::gliese::scanner::http::handler {
 
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
+
+    class DevicesDPIHandler : public kitsune::ioc::Service<DevicesHandler, GetMapping> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices/dpi";
+        }
+
+        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    };
+
+    class DevicesDPICORSHandler : public kitsune::ioc::Service<DevicesCORSHandler, OptionsMapping> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices/dpi";
+        }
+
+        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    };
 }
 

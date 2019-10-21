@@ -26,9 +26,12 @@
 namespace dasa::gliese::scanner::twain {
     class NativeTransfer : public Transfer {
     public:
-        explicit NativeTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
+        NativeTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
+            : Transfer(twain, std::move(outputMime)) {}
 
 		TW_IMAGEINFO prepare() final;
 		bool transferOne(std::ostream& outputStream) final;
+        std::string getTransferMIME() final;
+        std::string getDefaultMIME() final;
     };
 }

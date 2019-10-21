@@ -26,10 +26,19 @@
 namespace dasa::gliese::scanner::twain {
     class MemoryTransfer : public Transfer {
     public:
-        explicit MemoryTransfer(dasa::gliese::scanner::Twain *twain) : Transfer(twain) {}
+        MemoryTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
+            : Transfer(twain, std::move(outputMime)) {}
 
 		TW_IMAGEINFO prepare() final;
         bool transferOne(std::ostream& outputStream) final;
+
+        std::string getTransferMIME() final {
+            return getDefaultMIME();
+        }
+
+        std::string getDefaultMIME() final {
+            return "image/bmp";
+        }
 
     private:
 		TW_IMAGEINFO imageInfo{};

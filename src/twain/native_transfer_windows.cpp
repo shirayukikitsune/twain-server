@@ -21,37 +21,6 @@
 
 using namespace dasa::gliese::scanner::twain;
 
-#ifndef _WINDOWS
-typedef struct tagBITMAPINFOHEADER {
-    uint32_t biSize;
-    int32_t  biWidth;
-    int32_t  biHeight;
-    uint16_t biPlanes;
-    uint16_t biBitCount;
-    uint32_t biCompression;
-    uint32_t biSizeImage;
-    int32_t  biXPelsPerMeter;
-    int32_t  biYPelsPerMeter;
-    uint32_t biClrUsed;
-    uint32_t biClrImportant;
-} __attribute__((packed)) BITMAPINFOHEADER, *PBITMAPINFOHEADER;
-
-typedef struct tagRGBQUAD {
-    uint8_t rgbBlue;
-    uint8_t rgbGreen;
-    uint8_t rgbRed;
-    uint8_t rgbReserved;
-} __attribute__((packed)) RGBQUAD;
-
-typedef struct tagBITMAPFILEHEADER {
-    uint16_t bfType;
-    uint32_t bfSize;
-    uint16_t bfReserved1;
-    uint16_t bfReserved2;
-    uint32_t bfOffBits;
-} __attribute__((packed)) BITMAPFILEHEADER;
-#endif
-
 TW_IMAGEINFO NativeTransfer::prepare() {
 	LOG_S(INFO) << "Getting image info";
 
@@ -134,4 +103,8 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 	twain->DSM_Free(reinterpret_cast<TW_HANDLE>(hImg));
 
     return rc == TWRC_XFERDONE;
+}
+
+std::string NativeTransfer::getTransferMIME() {
+    return "image/bmp";
 }

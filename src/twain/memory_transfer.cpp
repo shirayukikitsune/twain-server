@@ -22,6 +22,7 @@
 using namespace dasa::gliese::scanner::twain;
 
 TW_IMAGEINFO MemoryTransfer::prepare() {
+
 	LOG_S(INFO) << "Getting image info";
 	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
 	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
@@ -48,14 +49,90 @@ TW_IMAGEINFO MemoryTransfer::prepare() {
 
 	return imageInfo;
 }
+#ifndef _WINDOWS
+typedef struct tagBITMAPINFOHEADER {
+    uint32_t biSize;
+    int32_t  biWidth;
+    int32_t  biHeight;
+    uint16_t biPlanes;
+    uint16_t biBitCount;
+    uint32_t biCompression;
+    uint32_t biSizeImage;
+    int32_t  biXPelsPerMeter;
+    int32_t  biYPelsPerMeter;
+    uint32_t biClrUsed;
+    uint32_t biClrImportant;
+} __attribute__((packed)) BITMAPINFOHEADER, *PBITMAPINFOHEADER;
+
+typedef struct tagRGBQUAD {
+    uint8_t rgbBlue;
+    uint8_t rgbGreen;
+    uint8_t rgbRed;
+    uint8_t rgbReserved;
+} __attribute__((packed)) RGBQUAD;
+
+typedef struct tagBITMAPFILEHEADER {
+    uint16_t bfType;
+    uint32_t bfSize;
+    uint16_t bfReserved1;
+    uint16_t bfReserved2;
+    uint32_t bfOffBits;
+} __attribute__((packed)) BITMAPFILEHEADER;
+#endif
 
 bool MemoryTransfer::transferOne(std::ostream& os) {
 	TW_IMAGEMEMXFER memXferBuffer;
-	bool scanStarted = false;
 	TW_UINT16 rc;
 
 	buffer = twain->DSM_MemAllocate(memXferTemplate.Memory.Length);
 	memXferTemplate.Memory.TheMem = twain->DSM_LockMemory(buffer);
+
+	auto bpp = imageInfo.BitsPerPixel;
+	auto colorCount = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
+	unsigned paletteSize = sizeof(RGBQUAD) * colorCount;
+    BITMAPINFOHEADER infoHeader{};
+    infoHeader.biSize = sizeof(BITMAPINFOHEADER);
+    infoHeader.biWidth = imageInfo.ImageWidth;
+    infoHeader.biHeight = imageInfo.ImageLength;
+    infoHeader.biPlanes = 1;
+    infoHeader.biBitCount = bpp;
+    infoHeader.biCompression = 0;
+    infoHeader.biXPelsPerMeter = lround(imageInfo.XResolution.Whole * 39.3700787 + 0.5);
+    infoHeader.biYPelsPerMeter = lround(imageInfo.YResolution.Whole * 39.3700787 + 0.5);
+    infoHeader.biClrUsed = colorCount;
+    infoHeader.biClrImportant = colorCount;
+    infoHeader.biSizeImage = ((((infoHeader.biWidth * infoHeader.biBitCount) + 31U) & ~31U) / 8) * infoHeader.biHeight;
+
+    BITMAPFILEHEADER fileHeader{
+        0x4d42,
+        (uint32_t)(infoHeader.biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER)),
+        0,
+        0,
+        (uint32_t)(sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + paletteSize)
+    };
+
+    os.write(reinterpret_cast<char*>(&fileHeader), sizeof(BITMAPFILEHEADER));
+    os.write(reinterpret_cast<char*>(&infoHeader), sizeof(BITMAPINFOHEADER));
+
+    if(colorCount==2)
+    {
+        RGBQUAD pPal;
+        pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = 0x00;
+        pPal.rgbReserved = 0x00;
+        os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
+
+        pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = 0xFF;
+        os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
+    }
+    else if(colorCount==256)
+    {
+        RGBQUAD pPal = {0,0,0,0};
+        for(int iPal = 0; iPal <= 255; iPal++)
+        {
+            pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = iPal;
+            os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
+        }
+    }
 
 	LOG_S(INFO) << "Starting transfer";
 	while (true) {
@@ -75,8 +152,7 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 
 		twain->setState(7);
 
-		os.write(reinterpret_cast<char*>(memXferBuffer.Memory.TheMem), memXferBuffer.Memory.Length);
-		os.flush();
+		os.write(reinterpret_cast<char*>(memXferBuffer.Memory.TheMem), memXferBuffer.BytesWritten);
 
 		if (rc == TWRC_XFERDONE) {
 			break;
@@ -88,5 +164,4 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 	buffer = nullptr;
 
     return rc == TWRC_XFERDONE;
-
 }
