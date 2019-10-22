@@ -16,8 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <loguru.hpp>
 #include "native_transfer.hpp"
+
+#include <loguru.hpp>
 
 using namespace dasa::gliese::scanner::twain;
 
@@ -33,6 +34,7 @@ TW_IMAGEINFO NativeTransfer::prepare() {
 	return imageInfo;
 }
 
+#define BYTES_PERLINE_ALIGN4(width, bpp) (((((int)(width)*(bpp))+31)/32)*4)
 bool NativeTransfer::transferOne(std::ostream& os) {
 	LOG_SCOPE_FUNCTION(INFO);
 
@@ -59,42 +61,20 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 			return false;
 		}
 
-		unsigned paletteSize = 0;
-		switch (pDIB->biBitCount) {
-		case 1:
-			paletteSize = 2;
-			break;
-		case 8:
-			paletteSize = 256;
-			break;
-		case 24:
-			break;
-		default:
-			assert(0); //Not going to work!
-			break;
-		}
+        auto colorCount = pDIB->biBitCount == 1 ? 2 : pDIB->biBitCount == 8 ? 256 : 0;
+        unsigned paletteSize = sizeof(RGBQUAD) * colorCount;
+		pDIB->biSizeImage = BYTES_PERLINE_ALIGN4(pDIB->biWidth, pDIB->biBitCount) * pDIB->biHeight;
 
-		if (pDIB->biSizeImage == 0)
-		{
-			pDIB->biSizeImage = ((((pDIB->biWidth * pDIB->biBitCount) + 31U) & ~31U) / 8) * pDIB->biHeight;
-
-			// If a compression scheme is used the result may infact be larger
-			// Increase the size to account for this.
-			if (pDIB->biCompression != 0)
-			{
-				pDIB->biSizeImage = (pDIB->biSizeImage * 3) / 2;
-			}
-		}
-
-		uint64_t nImageSize = pDIB->biSizeImage + (sizeof(RGBQUAD) * paletteSize) + sizeof(BITMAPINFOHEADER);
+		uint64_t nImageSize = pDIB->biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER);
 
 		BITMAPFILEHEADER bmpFIH = { 0 };
 		bmpFIH.bfType = 0x4d42;
 		bmpFIH.bfSize = nImageSize + sizeof(BITMAPFILEHEADER);
-		bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD) * paletteSize);
+		bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + paletteSize;
 
 		os.write(reinterpret_cast<char*>(&bmpFIH), sizeof(BITMAPFILEHEADER));
 		os.write(reinterpret_cast<char*>(pDIB), nImageSize);
+        os.flush();
 	}
 
 	LOG_S(INFO) << "Transfer finished";
@@ -106,5 +86,9 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 }
 
 std::string NativeTransfer::getTransferMIME() {
+    return "image/bmp";
+}
+
+std::string NativeTransfer::getDefaultMIME() {
     return "image/bmp";
 }

@@ -33,6 +33,10 @@ dasa::gliese::scanner::Application *application;
 
 using dasa::gliese::scanner::windows::Application;
 
+Application::Application() : twain(getTwainIoContext()) {
+
+}
+
 void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listener> listener) {
     LOG_SCOPE_FUNCTION(INFO);
     LOG_S(INFO) << "Initializing Windows application";
@@ -115,6 +119,7 @@ void Application::run() {
     ioc.stop();
 }
 
+#if 1
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
 	int argc;
 	auto wargv = CommandLineToArgvW(pCmdLine, &argc);
@@ -133,6 +138,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		delete[] argv[i];
 	}
 	delete[] argv;
+#else
+int main(int argc, char **argv) {
+    loguru::init(argc, argv, "-v");
+#endif
 
 	windows_application = new Application;
 	application = windows_application;

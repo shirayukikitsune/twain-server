@@ -26,6 +26,8 @@ namespace dasa::gliese::scanner::windows
 {
     class Application : public dasa::gliese::scanner::Application {
     public:
+        Application();
+
         void initialize(std::shared_ptr<http::Listener> listener) override;
         void run() override;
         void stop() { shouldRun = false; }

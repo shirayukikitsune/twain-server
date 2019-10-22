@@ -143,8 +143,8 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 	}
 
 	// Force LSB transfer
-	twain.setCapability(ICAP_BITORDER, TWBO_MSBFIRST, TWTY_UINT16);
-	twain.setCapability(ICAP_BITORDERCODES, TWBO_MSBFIRST, TWTY_UINT16);
+	twain.setCapability(ICAP_BITORDER, TWBO_LSBFIRST, TWTY_UINT16);
+	twain.setCapability(ICAP_BITORDERCODES, TWBO_LSBFIRST, TWTY_UINT16);
 
     twain.enableDataSource(application->getParentWindow(), false);
 

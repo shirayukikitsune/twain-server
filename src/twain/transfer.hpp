@@ -19,6 +19,7 @@
 #pragma once
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
+#include <WinSock2.h>
 #include <Windows.h>
 #endif
 

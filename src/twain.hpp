@@ -86,6 +86,10 @@ namespace dasa::gliese::scanner {
         int getState() { return state; }
         void setState(int newState) { state = newState; }
 
+        bool isUsingCallbacks() {
+            return useCallbacks;
+        }
+
         pTW_IDENTITY getIdentity() {
             return &identity;
         }
