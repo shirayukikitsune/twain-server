@@ -20,10 +20,11 @@
 #include "../../application.hpp"
 
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::StatusHandler, statusHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::ResetHandler, resetHandlerInjectable);
 
 extern dasa::gliese::scanner::Application *application;
 
-using dasa::gliese::scanner::http::handler::StatusHandler;
+using namespace dasa::gliese::scanner::http::handler;
 namespace bh = boost::beast::http;
 
 bh::response<bh::dynamic_body> StatusHandler::operator()(bh::request<bh::string_body>&& request) {
@@ -40,4 +41,11 @@ bh::response<bh::dynamic_body> StatusHandler::operator()(bh::request<bh::string_
 	boost::beast::ostream(res.body()) << response;
 	res.prepare_payload();
 	return res;
+}
+
+bh::response<bh::dynamic_body> ResetHandler::operator()(bh::request<bh::string_body> &&request) {
+    application->getTwain().reset();
+
+    StatusHandler statusHandler;
+    return statusHandler(std::move(request));
 }

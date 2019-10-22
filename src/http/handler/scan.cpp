@@ -163,15 +163,13 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 	return response;
 }
 
-std::unique_ptr<dasa::gliese::scanner::twain::Transfer> transfer;
-
 bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::string_body>&& request) {
 	auto response = prepareScan(request);
 	auto& twain = application->getTwain();
 	auto outputMime = (std::string)request[bh::field::accept];
 
 	if (twain.getState() == 6) {
-		transfer = twain.startScan(outputMime);
+		twain.startScan(outputMime);
 	}
     auto origin = request[bh::field::origin];
     if (!origin.empty()) {
@@ -187,6 +185,7 @@ bh::response<bh::dynamic_body> PrepareScanCORSHandler::operator()(bh::request<bh
 }
 
 bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
         return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
     }
@@ -212,7 +211,8 @@ bh::response<bh::dynamic_body> HasNextScanCORSHandler::operator()(bh::request<bh
 }
 
 bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<bh::string_body>&& request) {
-	if (!transfer) {
+    auto transfer = application->getTwain().getActiveTransfer();
+    if (!transfer) {
 		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 
@@ -248,7 +248,8 @@ bh::response<bh::dynamic_body> NextImageDataScanCORSHandler::operator()(bh::requ
 }
 
 bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::string_body>&& request) {
-	if (!transfer) {
+    auto transfer = application->getTwain().getActiveTransfer();
+    if (!transfer) {
 		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 	if (!transfer->hasPending()) {
@@ -282,7 +283,8 @@ bh::response<bh::dynamic_body> NextScanCORSHandler::operator()(bh::request<bh::s
 }
 
 bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string_body>&& request) {
-	if (!transfer) {
+    auto transfer = application->getTwain().getActiveTransfer();
+    if (!transfer) {
 		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 
@@ -293,13 +295,12 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
         response.set(bh::field::access_control_allow_origin, origin);
     }
 
+    auto& twain = application->getTwain();
 	transfer->clearPending();
-	transfer->end();
+    twain.endTransfer();
 
-	auto& twain = application->getTwain();
 	twain.disableDS();
 	twain.closeDS();
-	transfer = nullptr;
 
 	response.prepare_payload();
 	return response;
@@ -320,15 +321,14 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
             response.set(bh::field::access_control_allow_origin, origin);
         }
         auto os = boost::beast::ostream(response.body());
-        transfer = twain.startScan(outputMime);
+        auto transfer = twain.startScan(outputMime);
         response.set(bh::field::content_type, "image/jpeg");
 		transfer->transferAll(os);
     }
 
+    twain.endTransfer();
     twain.disableDS();
     twain.closeDS();
-
-    transfer = nullptr;
 
     response.prepare_payload();
     return response;

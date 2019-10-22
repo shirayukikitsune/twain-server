@@ -37,8 +37,8 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
     auto defaultDevice = application->getTwain().getDefaultDataSource();
     size_t i = 0;
     for (auto & device : devices) {
-        auto deviceJson = deviceToJson(device);
-        if (defaultDevice.Id == device.Id) {
+        auto deviceJson = device.toJson();
+        if (device == defaultDevice.Id) {
             deviceJson["default"] = true;
         }
         response[i++] = deviceJson;
@@ -89,7 +89,7 @@ bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::str
         }
     }
 
-    application->getTwain().DSM_Free(cap.hContainer);
+    application->getTwain().dsm().free(cap.hContainer);
     application->getTwain().closeDS();
 
     bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };

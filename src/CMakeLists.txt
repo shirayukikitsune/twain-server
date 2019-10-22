@@ -19,7 +19,6 @@ target_sources(twain-server PUBLIC
         external/twain.h
         application.cpp application.hpp
         twain.cpp twain.hpp
-        exception/dsm_exception.hpp
         exception/http_exception.hpp
         http/listener.cpp http/listener.hpp
         http/session.cpp http/session.hpp
@@ -28,6 +27,8 @@ target_sources(twain-server PUBLIC
         http/handler/handler.hpp
         http/handler/scan.cpp http/handler/scan.hpp
         http/handler/status.cpp
+        twain/device.cpp twain/device.hpp
+        twain/dsm.cpp twain/dsm.hpp
         twain/transfer.cpp twain/transfer.hpp
         twain/memory_transfer.cpp twain/memory_transfer.hpp
         twain/native_transfer.hpp)

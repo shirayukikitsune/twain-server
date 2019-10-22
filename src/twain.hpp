@@ -21,12 +21,10 @@
 #include <nlohmann/json.hpp>
 #include <list>
 
-#if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
-#include <Windows.h>
-#endif
-
 #include "external/twain.h"
 #include "twain/transfer.hpp"
+#include "twain/device.hpp"
+#include "twain/dsm.hpp"
 
 #include <boost/asio/execution_context.hpp>
 
@@ -41,11 +39,6 @@ namespace dasa::gliese::scanner {
     class Twain {
     public:
         explicit Twain(boost::asio::io_context &context);
-        ~Twain();
-
-        // TWAIN in MacOS uses an uintptr_t for the ID, instead of an integer. We typedef that to avoid several #ifdefs
-        /// The type of a device identifier
-        typedef decltype(TW_IDENTITY::Id) TW_ID;
 
         /**
          * Fills the application identity struct
@@ -83,64 +76,140 @@ namespace dasa::gliese::scanner {
          * @brief Closes the DSM connection
          */
         void closeDSM();
+
+        /**
+         * Returns the TWAIN state
+         */
         int getState() { return state; }
+
+        /**
+         * Sets the new state of the TWAIN FSM
+         */
         void setState(int newState) { state = newState; }
 
         bool isUsingCallbacks() {
             return useCallbacks;
         }
 
+        /**
+         * Returns the application identity
+         */
         pTW_IDENTITY getIdentity() {
             return &identity;
         }
 
-        std::list<TW_IDENTITY> listSources();
-        TW_IDENTITY getDefaultDataSource();
+        /**
+         * Returns a list of all available TWAIN DS
+         */
+        std::list<twain::Device> listSources();
 
-        DSMENTRYPROC entry;
+        /**
+         * Returns the default TWAIN DS
+         */
+        TW_IDENTITY getDefaultDataSource();
 
         TW_STATUSUTF8 getStatus(TW_UINT16 rc);
 
-        bool loadDataSource(TW_ID id);
+        /**
+         * Open a connection to a DS
+         * @param id The identifier of the DS
+         * @return Whether the connection was successful
+         */
+        bool loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id);
 
+        /**
+         * Start acquiring images from a TWAIN DS
+         * @param handle A handle to the main application window
+         * @param showUI Whether to show the DS UI
+         */
         void enableDataSource(TW_HANDLE handle, bool showUI);
 
+        /**
+         * Return the current loaded DS
+         */
         pTW_IDENTITY getDataSouce() { return currentDS.get(); }
+
+        /**
+         * Closes the connection to the current DS
+         */
         bool closeDS();
+
+        /**
+         * Signal the DS that it will not be used anymore
+         */
         void disableDS();
 
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
 		TW_UINT16 setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue);
         TW_INT16 getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg = MSG_GET);
 
-        std::unique_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
+        std::shared_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
 
-        TW_HANDLE DSM_MemAllocate(TW_UINT32 size);
-        void DSM_Free(TW_HANDLE memory);
-        TW_MEMREF DSM_LockMemory(TW_HANDLE memory);
-        void DSM_UnlockMemory(TW_HANDLE memory);
+        /**
+         * Reset the TWAIN status.
+         *
+         * This efectivelly clear all transfers, disable and close the DS, close and unload the DSM
+         * and then load and open the DSM
+         */
+        void reset();
 
-        pTW_IDENTITY getCurrentDS() { return currentDS.get(); }
+        /**
+         * Return the current DSM connection
+         */
+        twain::DSM& dsm() {
+            return DSM;
+        }
+
+        /**
+         * Forward call to DSM_Entry
+         */
+        TW_UINT16 operator()(pTW_IDENTITY pOrigin,
+                             pTW_IDENTITY pDest,
+                             TW_UINT32 DG,
+                             TW_UINT16 DAT,
+                             TW_UINT16 MSG,
+                             TW_MEMREF pData) {
+            return DSM(pOrigin, pDest, DG, DAT, MSG, pData);
+        }
+
+        /**
+         * Forward call to DSM_Entry, using the application identity as origin and the current DS as destination
+         */
+        TW_UINT16 operator()(TW_UINT32 DG,
+                             TW_UINT16 DAT,
+                             TW_UINT16 MSG,
+                             TW_MEMREF pData) {
+            return DSM(getIdentity(), getDataSouce(), DG, DAT, MSG, pData);
+        }
+
+        /**
+         * Return the current active transfer
+         */
+        std::shared_ptr<dasa::gliese::scanner::twain::Transfer> getActiveTransfer() {
+            return activeTransfer;
+        }
+
+        /**
+         * Close the active transfer
+         */
+        void endTransfer();
 
     private:
         TW_IDENTITY identity{};
-        TW_ENTRYPOINT entrypoint{};
         TW_USERINTERFACE ui{};
+
+        twain::DSM DSM;
 
         boost::asio::io_context& context;
 
-#ifdef TWH_CMP_MSC
-        HMODULE
-#else
-        void*
-#endif
-            DSM = nullptr;
         int state = 1;
         bool useCallbacks = false;
+        bool listening = false;
 
         void shutdown() noexcept;
 
         std::unique_ptr<TW_IDENTITY> currentDS;
+        std::shared_ptr<dasa::gliese::scanner::twain::Transfer> activeTransfer;
 
         static std::map<TW_UINT32, TW_MEMREF> map;
 
@@ -150,4 +219,3 @@ namespace dasa::gliese::scanner {
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity);
-nlohmann::json deviceToJson(TW_IDENTITY device);

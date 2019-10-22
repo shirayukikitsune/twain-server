@@ -25,11 +25,11 @@ TW_IMAGEINFO MemoryTransfer::prepare() {
 
 	LOG_S(INFO) << "Getting image info";
 	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
-	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
+	(*twain)(DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
 
 	LOG_S(INFO) << "Getting buffer size";
 	memset(&sourceBufferSize, 0, sizeof(TW_SETUPMEMXFER));
-	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_CONTROL, DAT_SETUPMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&sourceBufferSize));
+    (*twain)(DG_CONTROL, DAT_SETUPMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&sourceBufferSize));
 
 	auto bufferSize = sourceBufferSize.Preferred;
 
@@ -84,8 +84,8 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 	TW_IMAGEMEMXFER memXferBuffer;
 	TW_UINT16 rc;
 
-	buffer = twain->DSM_MemAllocate(memXferTemplate.Memory.Length);
-	memXferTemplate.Memory.TheMem = twain->DSM_LockMemory(buffer);
+	buffer = twain->dsm().alloc(memXferTemplate.Memory.Length);
+	memXferTemplate.Memory.TheMem = twain->dsm().lock(buffer);
 
 	auto bpp = imageInfo.BitsPerPixel;
 	auto colorCount = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
@@ -139,7 +139,7 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 		memcpy(&memXferBuffer, &memXferTemplate, sizeof(TW_IMAGEMEMXFER));
 		memset(memXferBuffer.Memory.TheMem, 0, memXferBuffer.Memory.Length);
 
-		rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
+		rc = (*twain)(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
 
 		if (rc == TWRC_CANCEL) {
 			LOG_S(WARNING) << "Cancelled transfer while trying to get data";
@@ -159,8 +159,8 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 		}
 	}
 
-	twain->DSM_UnlockMemory(buffer);
-	twain->DSM_Free(buffer);
+	twain->dsm().unlock(buffer);
+	twain->dsm().free(buffer);
 	buffer = nullptr;
 
     return rc == TWRC_XFERDONE;

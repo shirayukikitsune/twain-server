@@ -28,7 +28,7 @@ TW_IMAGEINFO NativeTransfer::prepare() {
 
 	TW_IMAGEINFO imageInfo;
 	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
-	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
+    (*twain)(DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
 
 	twain->setState(7);
 
@@ -42,10 +42,10 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
     TW_IMAGEINFO imageInfo;
     memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
-    twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
+    (*twain)(DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
 
 	LOG_S(INFO) << "Starting transfer";
-	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
+	auto rc = (*twain)(DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
 
 	if (rc == TWRC_CANCEL) {
 		LOG_S(WARNING) << "Cancelled transfer while trying to get data";
@@ -83,8 +83,8 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
 	LOG_S(INFO) << "Transfer finished";
 
-	twain->DSM_UnlockMemory(reinterpret_cast<TW_HANDLE>(hImg));
-	twain->DSM_Free(reinterpret_cast<TW_HANDLE>(hImg));
+	twain->dsm().unlock(reinterpret_cast<TW_HANDLE>(hImg));
+	twain->dsm().free(reinterpret_cast<TW_HANDLE>(hImg));
 
     return rc == TWRC_XFERDONE;
 }

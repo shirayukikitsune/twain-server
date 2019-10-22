@@ -40,9 +40,6 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
 	TW_MEMREF hImg = nullptr;
 
-	LOG_S(INFO) << "Sizeof BITMAPINFOHEADER: " << sizeof(BITMAPINFOHEADER);
-	LOG_S(INFO) << "Sizeof BITMAPFILEHEADER: " << sizeof(BITMAPFILEHEADER);
-
 	LOG_S(INFO) << "Starting transfer";
 	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
 

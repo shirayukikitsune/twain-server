@@ -20,7 +20,6 @@
 
 #include "twain.hpp"
 
-#include "exception/dsm_exception.hpp"
 #include "twain/memory_transfer.hpp"
 #include "twain/native_transfer.hpp"
 
@@ -28,28 +27,12 @@
 #include <list>
 #include <loguru.hpp>
 
-#ifdef TWH_CMP_GNU
-#include <dlfcn.h>
-#define LOADLIBRARY(lib) dlopen(lib, RTLD_NOW)
-#define LOADFUNCTION(lib, func) dlsym(lib, func)
-#define UNLOADLIBRARY(lib) dlclose(lib)
-#else
-#define LOADLIBRARY(lib) LoadLibraryA(lib)
-#define LOADFUNCTION(lib, func) GetProcAddress(lib, func)
-#define UNLOADLIBRARY(lib) FreeLibrary(lib)
-#endif
-
 using dasa::gliese::scanner::Twain;
-using namespace dasa::gliese::scanner::exception;
 extern dasa::gliese::scanner::Application *application;
 
 Twain::Twain(boost::asio::io_context& context)
         : context(context) {
 
-}
-
-Twain::~Twain() {
-    shutdown();
 }
 
 void Twain::fillIdentity() {
@@ -79,35 +62,18 @@ void Twain::loadDSM(const char *path) {
         return;
     }
 
-    // In OSX, TWAIN is a framework, statically linked
-#ifdef __APPLE__
-    entry = &DSM_Entry;
-#else
-    DSM = LOADLIBRARY(path);
-
-    if (DSM == nullptr) {
-        ABORT_S() << "Failed to open TWAIN library at path [" << path << "]";
+    DSM.path(path);
+    if (!DSM.load()) {
+        LOG_S(ERROR) << "Failed to load DSM library";
         return;
     }
 
-    entry = reinterpret_cast<DSMENTRYPROC>(LOADFUNCTION(DSM, "DSM_Entry"));
-
-#ifdef TWH_CMP_GNU
-    auto err = dlerror();
-    if (err) {
-        ABORT_S() << "Failed to get TWAIN DSM_Entry: " << err;
-        return;
-    }
-#else
-    if (entry == nullptr) {
-        ABORT_S() << "Failed to get TWAIN DSM_Entry";
-        return;
-    }
-#endif
-#endif
     state = 2;
 
-    twainListen();
+    if (!listening) {
+        listening = true;
+        twainListen();
+    }
 }
 
 void twainListen() {
@@ -124,11 +90,8 @@ void Twain::unloadDSM() {
         return;
     }
 
-#ifdef __APPLE__
-    // On OSX we do nothing, since the library is statically linked
-#else
-    UNLOADLIBRARY(DSM);
-#endif
+    DSM.unload();
+    state = 1;
 }
 
 void Twain::openDSM() {
@@ -142,22 +105,12 @@ void Twain::openDSM() {
     }
 
     auto parent = application->getParentWindow();
-    auto result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_OPENDSM, reinterpret_cast<TW_MEMREF>(&parent));
-    if (result != TWRC_SUCCESS) {
-        throw DSMOpenException(result);
-    }
-
-    if ((identity.SupportedGroups & DF_DSM2) == DF_DSM2) {
-        memset(&entrypoint, 0, sizeof(TW_ENTRYPOINT));
-        entrypoint.Size = sizeof(TW_ENTRYPOINT);
-        result = entry(getIdentity(), nullptr, DG_CONTROL, DAT_ENTRYPOINT, MSG_GET, reinterpret_cast<TW_MEMREF>(&entrypoint));
-        if (result != TWRC_SUCCESS) {
-            throw DSMOpenException(result);
-        }
+    if (!DSM.open(getIdentity(), parent)) {
+        LOG_S(ERROR) << "Failed to open DSM connection";
+        return;
     }
 
     state = 3;
-    LOG_S(INFO) << "DSM connection open";
 }
 
 void Twain::closeDSM() {
@@ -166,16 +119,12 @@ void Twain::closeDSM() {
         return;
     }
 
-    if (entry(getIdentity(), nullptr, DG_CONTROL, DAT_PARENT, MSG_CLOSEDSM, nullptr) != TWRC_SUCCESS) {
-        LOG_S(ERROR) << "Failed to close the DSM connection";
-    } else {
-        LOG_S(INFO) << "DSM connection closed";
-        state = 2;
-    }
+    DSM.close(getIdentity());
+    state = 2;
 }
 
-std::list<TW_IDENTITY> Twain::listSources() {
-    std::list<TW_IDENTITY> sources;
+std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
+    std::list<twain::Device> sources;
 
     if (state < 3) {
         LOG_S(ERROR) << "Trying to list sources when DSM is not active";
@@ -184,15 +133,15 @@ std::list<TW_IDENTITY> Twain::listSources() {
 
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
-    auto rc = entry(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
+    auto rc = DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
         return sources;
     }
 
     do {
-        sources.push_back(current);
+        sources.emplace_back(this, current);
         memset(&current, 0, sizeof(TW_IDENTITY));
-    } while (entry(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
+    } while (DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
 
     return sources;
 }
@@ -206,7 +155,7 @@ TW_IDENTITY Twain::getDefaultDataSource() {
         return current;
     }
 
-    auto rc = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETDEFAULT, reinterpret_cast<TW_MEMREF>(&current));
+    auto rc = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETDEFAULT, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
         getStatus(rc);
     }
@@ -222,7 +171,7 @@ TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
         return twStatus;
     }
 
-    entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
+    DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
     return twStatus;
 }
 
@@ -248,7 +197,7 @@ static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT
     return TWRC_SUCCESS;
 }
 
-bool Twain::loadDataSource(TW_ID id) {
+bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
     if (state < 3) {
         LOG_S(ERROR) << "Trying to load DS when DSM is not active";
         return false;
@@ -261,7 +210,7 @@ bool Twain::loadDataSource(TW_ID id) {
     currentDS.reset(nullptr);
     auto sources = listSources();
     for (auto & source : sources) {
-        if (source.Id == id) {
+        if (source == id) {
             currentDS = std::make_unique<TW_IDENTITY>();
             memcpy(currentDS.get(), &source, sizeof(TW_IDENTITY));
             break;
@@ -283,7 +232,7 @@ bool Twain::loadDataSource(TW_ID id) {
 #endif
     useCallbacks = false;
 
-    auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
+    auto resultCode = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to open DataSource";
@@ -306,7 +255,7 @@ bool Twain::loadDataSource(TW_ID id) {
         LOG_S(WARNING) << "MSG_REGISTER_CALLBACK not supported";
     }
 #else
-    resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, reinterpret_cast<TW_MEMREF>(&callback));
+    resultCode = DSM(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, reinterpret_cast<TW_MEMREF>(&callback));
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to register callback: " << resultCode;
         return false;
@@ -331,7 +280,7 @@ void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
         ui.ModalUI = 1;
         ui.hParent = handle;
 
-        auto resultCode = entry(getIdentity(), getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+        auto resultCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
         if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
             LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
             return;
@@ -349,39 +298,35 @@ bool Twain::closeDS() {
         return false;
     }
 
-    boost::asio::post(application->getTwainIoContext(), [this] {
-        auto resultCode = entry(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
+    auto resultCode = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
-        if (resultCode != TWRC_SUCCESS) {
-            auto status = getStatus(resultCode);
-            LOG_S(ERROR) << "Failed to close DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
-        }
+    if (resultCode != TWRC_SUCCESS) {
+        auto status = getStatus(resultCode);
+        LOG_S(ERROR) << "Failed to close DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
+    }
 
-        state = 3;
-        LOG_S(INFO) << "DS closed";
-        currentDS.release();
-    });
+    state = 3;
+    LOG_S(INFO) << "DS closed";
+    currentDS.release();
 
     return true;
 }
 
 void Twain::disableDS() {
-    if (state != 5) {
+    if (state < 5) {
         LOG_S(ERROR) << "Trying to disable DS but it was not enabled";
         return;
     }
 
-    //boost::asio::post(application->getTwainIoContext(), [this] {
-        auto resultCode = entry(getIdentity(), getCurrentDS(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+    auto resultCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
 
-        if (resultCode != TWRC_SUCCESS) {
-            auto status = getStatus(resultCode);
-            LOG_S(ERROR) << "Failed to disable DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
-        }
+    if (resultCode != TWRC_SUCCESS) {
+        auto status = getStatus(resultCode);
+        LOG_S(ERROR) << "Failed to disable DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
+    }
 
-        setState(4);
-        LOG_S(INFO) << "DS disabled";
-    //});
+    setState(4);
+    LOG_S(INFO) << "DS disabled";
 }
 
 TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) {
@@ -390,17 +335,13 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
     TW_CAPABILITY cap;
     cap.Cap = capability;
     cap.ConType = TWON_ONEVALUE;
-    cap.hContainer = DSM_MemAllocate(sizeof(TW_ONEVALUE));
+    cap.hContainer = DSM.alloc(sizeof(TW_ONEVALUE));
     if (cap.hContainer == nullptr) {
         ABORT_S() << "Error allocating memory";
         return returnCode;
     }
 
-#ifdef __APPLE__
-    auto pValue = reinterpret_cast<pTW_ONEVALUE>(cap.hContainer);
-#else
-    auto pValue = (pTW_ONEVALUE)DSM_LockMemory(cap.hContainer);
-#endif
+    auto pValue = (pTW_ONEVALUE)DSM.lock(cap.hContainer);
     pValue->ItemType = type;
 
     switch (type) {
@@ -436,14 +377,14 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
             goto finishing;
     }
 
-    returnCode = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+    returnCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
         LOG_S(ERROR) << "Failed to set capability";
     }
 
 finishing:
-    DSM_UnlockMemory(cap.hContainer);
-    DSM_Free(cap.hContainer);
+    DSM.unlock(cap.hContainer);
+    DSM.free(cap.hContainer);
 
     return returnCode;
 }
@@ -462,32 +403,32 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue) {
 
 	cap.Cap = Cap;
 	cap.ConType = TWON_ONEVALUE;
-	cap.hContainer = DSM_MemAllocate(sizeof(TW_ONEVALUE_FIX32));
+	cap.hContainer = DSM.alloc(sizeof(TW_ONEVALUE_FIX32));
 	if (nullptr == cap.hContainer)
 	{
 		LOG_S(ERROR) << "Error allocating memory";
 		return twrc;
 	}
 
-	auto pVal = reinterpret_cast<pTW_ONEVALUE_FIX32>(DSM_LockMemory(cap.hContainer));
+	auto pVal = reinterpret_cast<pTW_ONEVALUE_FIX32>(DSM.lock(cap.hContainer));
 
 	pVal->ItemType = TWTY_FIX32;
 	pVal->Item = *_pValue;
 
 	// capability structure is set, make the call to the source now
-	twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+	twrc = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
 	if (TWRC_FAILURE == twrc)
 	{
 		LOG_S(ERROR) << "Could not set capability";
 	}
 
-	DSM_UnlockMemory(cap.hContainer);
-	DSM_Free(cap.hContainer);
+	DSM.unlock(cap.hContainer);
+	DSM.free(cap.hContainer);
 
 	return twrc;
 }
 
-std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std::string &outputMime) {
+std::shared_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std::string &outputMime) {
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
         return nullptr;
@@ -508,15 +449,15 @@ std::unique_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const s
     switch (mech)
     {
     case TWSX_MEMORY:
-        return std::make_unique<dasa::gliese::scanner::twain::MemoryTransfer>(this, outputMime);
+        activeTransfer = std::make_shared<dasa::gliese::scanner::twain::MemoryTransfer>(this, outputMime);
     case TWSX_NATIVE:
-        return std::make_unique<dasa::gliese::scanner::twain::NativeTransfer>(this, outputMime);
+        activeTransfer = std::make_shared<dasa::gliese::scanner::twain::NativeTransfer>(this, outputMime);
     default:
         LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
         break;
     }
 
-	return nullptr;
+	return activeTransfer;
 }
 
 TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
@@ -535,14 +476,14 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
     // leak because the source allocates memory during a MSG_GET.
     if (_cap.hContainer)
     {
-        DSM_Free(_cap.hContainer);
+        DSM.free(_cap.hContainer);
         _cap.hContainer = nullptr;
     }
 
     _cap.ConType = TWON_DONTCARE16;
 
     // capability structure is set, make the call to the source now
-    TW_UINT16 twrc = entry(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
+    TW_UINT16 twrc = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
 
     return twrc;
 }
@@ -555,7 +496,7 @@ bool Twain::getCurrent(TW_CAPABILITY *pCap, TW_UINT32& val)
 
     bool ret = false;
     if (pCap->ConType == TWON_ENUMERATION) {
-        auto pCapPT = (pTW_ENUMERATION)DSM_LockMemory(pCap->hContainer);
+        auto pCapPT = (pTW_ENUMERATION)DSM.lock(pCap->hContainer);
         switch(pCapPT->ItemType) {
             case TWTY_INT32:
                 val = (TW_INT32)((pTW_INT32)(&pCapPT->ItemList))[pCapPT->CurrentIndex];
@@ -592,93 +533,77 @@ bool Twain::getCurrent(TW_CAPABILITY *pCap, TW_UINT32& val)
                 ret = true;
                 break;
         }
-        DSM_UnlockMemory(pCap->hContainer);
+        DSM.unlock(pCap->hContainer);
     }
     else if(TWON_ONEVALUE == pCap->ConType) {
-        auto pCapPT = (pTW_ONEVALUE)DSM_LockMemory(pCap->hContainer);
+        auto pCapPT = (pTW_ONEVALUE)DSM.lock(pCap->hContainer);
         if(pCapPT->ItemType < TWTY_FIX32) {
             val = pCapPT->Item;
             ret = true;
         }
-        DSM_UnlockMemory(pCap->hContainer);
+        DSM.unlock(pCap->hContainer);
     }
     else if(TWON_RANGE == pCap->ConType) {
-        auto pCapPT = (pTW_RANGE)DSM_LockMemory(pCap->hContainer);
+        auto pCapPT = (pTW_RANGE)DSM.lock(pCap->hContainer);
         if(pCapPT->ItemType < TWTY_FIX32) {
             val = pCapPT->CurrentValue;
             ret = true;
         }
-        DSM_UnlockMemory(pCap->hContainer);
+        DSM.unlock(pCap->hContainer);
     }
 
     return ret;
 }
 
-
-TW_HANDLE Twain::DSM_MemAllocate(TW_UINT32 size) {
-    if (entrypoint.DSM_MemAllocate) {
-        return entrypoint.DSM_MemAllocate(size);
-    }
-
-#ifdef TWH_CMP_MSC
-    return ::GlobalAlloc(GPTR, size);
-#else
-    return reinterpret_cast<TW_HANDLE>(malloc(size));
-#endif
-}
-
-void Twain::DSM_Free(TW_HANDLE memory)
-{
-    if(entrypoint.DSM_MemFree)
-    {
-        return entrypoint.DSM_MemFree(memory);
-    }
-
-#ifdef TWH_CMP_MSC
-    ::GlobalFree(memory);
-#else
-    free(memory);
-#endif
-}
-
-
-TW_MEMREF Twain::DSM_LockMemory(TW_HANDLE memory) {
-    if (entrypoint.DSM_MemLock) {
-        return entrypoint.DSM_MemLock(memory);
-    }
-
-#ifdef TWH_CMP_MSC
-    return (TW_MEMREF)::GlobalLock(memory);
-#else
-    return reinterpret_cast<TW_MEMREF>(memory);
-#endif
-}
-
-void Twain::DSM_UnlockMemory(TW_HANDLE memory)
-{
-    if(entrypoint.DSM_MemUnlock)
-    {
-        return entrypoint.DSM_MemUnlock(memory);
-    }
-
-#ifdef TWH_CMP_MSC
-    ::GlobalUnlock(memory);
-#endif
-}
-
 void Twain::shutdown() noexcept {
-    if (getState() >= 5) {
+    LOG_SCOPE_FUNCTION(INFO);
+
+    if (getState() >= 6) {
+        LOG_F(INFO, "Canceling transfer");
+        this->endTransfer();
+    }
+    if (getState() == 5) {
+        LOG_F(INFO, "Disabling DS");
         this->disableDS();
     }
     if (getState() == 4) {
+        LOG_F(INFO, "Closing DS");
         this->closeDS();
     }
     if (getState() == 3) {
+        LOG_F(INFO, "Closing DSM");
         this->closeDSM();
     }
     if (getState() == 2) {
+        LOG_F(INFO, "Unloading DSM");
         this->unloadDSM();
     }
+}
+
+void Twain::reset() {
+    shutdown();
+
+    if (state != 1) {
+        LOG_S(ERROR) << "Failed to reset TWAIN state";
+        return;
+    }
+
+    if (!DSM.load()) {
+        return;
+    }
+    state = 2;
+    openDSM();
+}
+
+void Twain::endTransfer() {
+    if (!activeTransfer) {
+        LOG_S(INFO) << "Trying to end a transfer when there is none active";
+        return;
+    }
+
+    activeTransfer->clearPending();
+    activeTransfer->end();
+    activeTransfer = nullptr;
 }
 
 std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
@@ -694,17 +619,4 @@ std::ostream& operator<<(std::ostream& os, const TW_IDENTITY& identity) {
         os << " has no data";
     }
     return os;
-}
-
-nlohmann::json deviceToJson(TW_IDENTITY device) {
-	nlohmann::json deviceJson;
-#ifdef __APPLE__
-	deviceJson["id"] = reinterpret_cast<unsigned long>(device.Id);
-#else
-    deviceJson["id"] = static_cast<unsigned long>(device.Id);
-#endif
-	deviceJson["productName"] = reinterpret_cast<char*>(device.ProductName);
-	deviceJson["manufacturer"] = reinterpret_cast<char*>(device.Manufacturer);
-	deviceJson["productFamily"] = reinterpret_cast<char*>(device.ProductFamily);
-	return deviceJson;
 }

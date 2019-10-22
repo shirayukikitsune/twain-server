@@ -33,4 +33,17 @@ namespace dasa::gliese::scanner::http::handler {
 
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
+
+    class ResetHandler : public kitsune::ioc::Service<ResetHandler, RouteHandler> {
+    public:
+        [[nodiscard]] boost::beast::http::verb method() const override {
+            return boost::beast::http::verb::delete_;
+        }
+
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/status";
+        }
+
+        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    };
 }
