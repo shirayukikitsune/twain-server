@@ -54,18 +54,20 @@ bool DSM::load() {
     entry = reinterpret_cast<DSMENTRYPROC>(LOADFUNCTION(library, "DSM_Entry"));
     LOG_F(INFO, "DSM module allocated");
 
+#ifdef TWH_CMP_GNU
     dsm_module = DSM::module_ptr_t(library, module_releaser());
 
-#ifdef TWH_CMP_GNU
     auto err = dlerror();
     if (err) {
         ABORT_S() << "Failed to get TWAIN DSM_Entry: " << err;
         return false;
     }
 #else
+    dsm_module = DSM::module_ptr_t(&library, module_releaser());
+
     if (entry == nullptr) {
         ABORT_S() << "Failed to get TWAIN DSM_Entry";
-        return;
+        return false;
     }
 #endif
 #endif
@@ -202,5 +204,9 @@ TW_UINT16 DSM::operator()(pTW_IDENTITY pOrigin, pTW_IDENTITY pDest, TW_UINT32 DG
 
 void DSM::module_releaser::operator()(DSM::module_t *module) const {
     LOG_F(INFO, "DSM module released");
+#ifdef TWH_CMP_MSC
+    UNLOADLIBRARY(*module);
+#else
     UNLOADLIBRARY(module);
+#endif
 }

@@ -41,7 +41,7 @@ bool Device::isOnline() {
 
     bool closeAfter = false;
     if (twain->getState() == 3) {
-        twain->loadDataSource(identity.Id);
+        twain->loadDataSource(*this);
         closeAfter = true;
     }
 
@@ -65,7 +65,7 @@ finish:
 
 nlohmann::json Device::toJson() {
     auto json = deviceToJson(identity);
-    json["online"] = isOnline();
+    //json["online"] = isOnline();
     return json;
 }
 

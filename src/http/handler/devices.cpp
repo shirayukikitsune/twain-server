@@ -76,7 +76,7 @@ bh::response<bh::dynamic_body> DevicesCORSHandler::operator()(bh::request<bh::st
 
 bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
 	json response;
-	auto device = atoll(((std::string)request["x-device"]).c_str());
+	auto device = (twain::Device::TW_ID)atoll(((std::string)request["x-device"]).c_str());
 	TW_CAPABILITY cap{ICAP_XRESOLUTION, 0, nullptr};
 	application->getTwain().loadDataSource(device);
     application->getTwain().getCapability(cap);

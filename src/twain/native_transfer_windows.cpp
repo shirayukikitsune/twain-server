@@ -27,7 +27,7 @@ TW_IMAGEINFO NativeTransfer::prepare() {
 
 	TW_IMAGEINFO imageInfo;
 	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
-	twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
+	(*twain)(DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
 
 	twain->setState(7);
 
@@ -41,7 +41,7 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 	TW_MEMREF hImg = nullptr;
 
 	LOG_S(INFO) << "Starting transfer";
-	auto rc = twain->entry(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
+	auto rc = (*twain)(DG_IMAGE, DAT_IMAGENATIVEXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&hImg));
 
 	if (rc == TWRC_CANCEL) {
 		LOG_S(WARNING) << "Cancelled transfer while trying to get data";
@@ -52,21 +52,21 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 		return false;
 	}
 	if (rc == TWRC_XFERDONE) {
-		auto pDIB = (PBITMAPINFOHEADER)twain->DSM_LockMemory(reinterpret_cast<TW_HANDLE>(hImg));
+		auto pDIB = (PBITMAPINFOHEADER)twain->dsm().lock(reinterpret_cast<TW_HANDLE>(hImg));
 		if (!pDIB) {
 			LOG_S(ERROR) << "Failed to lock memory";
 			return false;
 		}
 
-        auto colorCount = pDIB->biBitCount == 1 ? 2 : pDIB->biBitCount == 8 ? 256 : 0;
-        unsigned paletteSize = sizeof(RGBQUAD) * colorCount;
+        uint64_t colorCount = pDIB->biBitCount == 1 ? 2 : pDIB->biBitCount == 8 ? 256 : 0;
+        uint64_t paletteSize = sizeof(RGBQUAD) * colorCount;
 		pDIB->biSizeImage = BYTES_PERLINE_ALIGN4(pDIB->biWidth, pDIB->biBitCount) * pDIB->biHeight;
 
-		uint64_t nImageSize = pDIB->biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER);
+		uint64_t nImageSize = (uint64_t)pDIB->biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER);
 
 		BITMAPFILEHEADER bmpFIH = { 0 };
 		bmpFIH.bfType = 0x4d42;
-		bmpFIH.bfSize = nImageSize + sizeof(BITMAPFILEHEADER);
+		bmpFIH.bfSize = (DWORD)(nImageSize + sizeof(BITMAPFILEHEADER));
 		bmpFIH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + paletteSize;
 
 		os.write(reinterpret_cast<char*>(&bmpFIH), sizeof(BITMAPFILEHEADER));
@@ -76,8 +76,8 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
 	LOG_S(INFO) << "Transfer finished";
 
-	twain->DSM_UnlockMemory(reinterpret_cast<TW_HANDLE>(hImg));
-	twain->DSM_Free(reinterpret_cast<TW_HANDLE>(hImg));
+	twain->dsm().unlock(reinterpret_cast<TW_HANDLE>(hImg));
+	twain->dsm().free(reinterpret_cast<TW_HANDLE>(hImg));
 
     return rc == TWRC_XFERDONE;
 }

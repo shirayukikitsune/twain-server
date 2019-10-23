@@ -18,6 +18,10 @@
 
 #pragma once
 
+#if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
+#include <Windows.h>
+#endif
+
 #include <nlohmann/json.hpp>
 #include <ostream>
 #include "../external/twain.h"
