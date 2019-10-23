@@ -42,9 +42,7 @@ namespace dasa::gliese::scanner::http {
             loop();
         }
 
-        void stop() {
-            shouldRun = false;
-        }
+        void stop();
 
         Router* getRouterForVerb(boost::beast::http::verb verb);
 

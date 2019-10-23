@@ -79,6 +79,12 @@ void Listener::listen(const char *address, unsigned short port) {
 #define HANDLER_CASE(a, b) case boost::beast::http::verb::a : return &b##Router;
 #define HANDLER_CASE1(a) HANDLER_CASE(a, a)
 
+void Listener::stop() {
+    shouldRun = false;
+    acceptor.cancel();
+    acceptor.close();
+}
+
 Router* Listener::getRouterForVerb(boost::beast::http::verb verb)
 {
     switch (verb) {
@@ -108,6 +114,9 @@ void Listener::loop(boost::beast::error_code ec) {
             yield acceptor.async_accept(socket, boost::beast::bind_front_handler(&Listener::loop, shared_from_this()));
 
             if (ec) {
+                if (ec == boost::asio::error::operation_aborted && !shouldRun) {
+                    return;
+                }
                 LOG_S(ERROR) << "Failed to accept incoming connection: " << ec.message();
             }
             else {
