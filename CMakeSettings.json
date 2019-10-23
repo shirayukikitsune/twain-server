@@ -1,40 +1,45 @@
 ﻿{
-"configurations": [
-{
-"name": "x64-Debug",
-"generator": "Ninja",
-"configurationType": "Debug",
-"inheritEnvironments": [ "msvc_x64_x64" ],
-"buildRoot": "${projectDir}\\out\\build-x64\\${name}",
-"installRoot": "${projectDir}\\out\\install\\${name}",
-"cmakeCommandArgs": "",
-"buildCommandArgs": "-v",
-"ctestCommandArgs": "",
-"variables": [
-{
-"name": "Boost_INCLUDE_DIR",
-"value": "C:/local/boost_1_71_0",
-"type": "PATH"
-}
-]
-},
-{
-"name": "x86-Debug",
-"generator": "Ninja",
-"configurationType": "Debug",
-"buildRoot": "${projectDir}\\out\\build-x86\\${name}",
-"installRoot": "${projectDir}\\out\\install\\${name}",
-"cmakeCommandArgs": "",
-"buildCommandArgs": "-v",
-"ctestCommandArgs": "",
-"inheritEnvironments": [ "msvc_x86" ],
-"variables": [
-{
-"name": "Boost_INCLUDE_DIR",
-"value": "C:/local/boost_1_71_0",
-"type": "PATH"
-}
-]
-}
-]
+    "configurations": [
+        {
+            "name": "x64-Debug",
+            "generator": "Ninja",
+            "configurationType": "Debug",
+            "inheritEnvironments": [ "msvc_x64_x64" ],
+            "buildRoot": "${projectDir}\\out\\build-x64\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "-v",
+            "ctestCommandArgs": "",
+            "variables": [
+                {
+                    "name": "Boost_INCLUDE_DIR",
+                    "value": "C:/local/boost_1_71_0",
+                    "type": "PATH"
+                },
+                {
+                    "name": "APPLICATION_TYPE",
+                    "value": "Service",
+                    "type": "STRING"
+                }
+            ]
+        },
+        {
+            "name": "x86-Debug",
+            "generator": "Ninja",
+            "configurationType": "Debug",
+            "buildRoot": "${projectDir}\\out\\build-x86\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "-v",
+            "ctestCommandArgs": "",
+            "inheritEnvironments": [ "msvc_x86" ],
+            "variables": [
+                {
+                    "name": "Boost_INCLUDE_DIR",
+                    "value": "C:/local/boost_1_71_0",
+                    "type": "PATH"
+                }
+            ]
+        }
+    ]
 }

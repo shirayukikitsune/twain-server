@@ -1,11 +1,18 @@
 if (MSVC OR MSYS OR MINGW)
-    add_executable(twain-server WIN32 application_windows.cpp application_windows.hpp
-            twain/native_transfer_windows.cpp)
-    target_compile_definitions(twain-server PUBLIC UNICODE=1)
+  if (APPLICATION_TYPE STREQUAL "Window")
+    add_executable(twain-server WIN32 application_windows_native.cpp)
+  elseif (APPLICATION_TYPE STREQUAL "Service")
+    add_executable(twain-server application_windows_service.cpp)
+  else ()
+    add_executable(twain-server application_windows_console.cpp)
+  endif()
+    
+  target_sources(twain-server PUBLIC application_windows.cpp application_windows.hpp twain/native_transfer_windows.cpp)
+  target_compile_definitions(twain-server PUBLIC UNICODE=1 WIN32_LEAN_AND_MEAN=1)
 else()
-    add_executable(twain-server application_linux.cpp application_linux.hpp
-            twain/native_transfer_linux.cpp)
-    target_link_libraries(twain-server PRIVATE pthread ${FREEIMAGE_LIBRARIES})
+  add_executable(twain-server application_linux.cpp application_linux.hpp 
+          twain/native_transfer_linux.cpp)
+  target_link_libraries(twain-server PRIVATE pthread ${FREEIMAGE_LIBRARIES})
 endif()
 
 # In OSX, TWAIN library is a framework that must be statically linked

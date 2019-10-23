@@ -30,16 +30,19 @@ namespace dasa::gliese::scanner::windows
 
         void initialize(std::shared_ptr<http::Listener> listener) override;
         void run() override;
-        void stop() { shouldRun = false; }
+        void stop() override;
 
         Twain& getTwain() override { return twain; }
         TW_HANDLE getParentWindow() override { return hwnd; }
         TW_MEMREF getParentWindowRef() override { return &hwnd; }
 
+        DWORD getApplicationThread() { return myThreadId; }
+
     private:
         bool shouldRun = true;
         Twain twain;
         HWND hwnd = nullptr;
+        DWORD myThreadId = 0;
     };
 
 }
