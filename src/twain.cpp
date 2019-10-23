@@ -70,13 +70,14 @@ void Twain::loadDSM(const char *path) {
 
     state = 2;
 
-    if (!listening) {
-        listening = true;
-        twainListen();
-    }
+    twainListen();
 }
 
 void twainListen() {
+    if (application->getTwain().getState() == 1) {
+        return;
+    }
+
     boost::asio::post(application->getTwainIoContext(), [] {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
@@ -105,7 +106,7 @@ void Twain::openDSM() {
     }
 
     auto parent = application->getParentWindow();
-    if (!DSM.open(getIdentity(), parent)) {
+    if (!DSM.open(getIdentity(), &parent)) {
         LOG_S(ERROR) << "Failed to open DSM connection";
         return;
     }
@@ -209,7 +210,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
 
     currentDS.reset(nullptr);
     auto sources = listSources();
-    for (auto & source : sources) {
+    for (auto& source : sources) {
         if (source == id) {
             currentDS = std::make_unique<TW_IDENTITY>();
             memcpy(currentDS.get(), &source, sizeof(TW_IDENTITY));
@@ -221,6 +222,22 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
         LOG_S(ERROR) << "Could not find DS with id " << id;
         return false;
     }
+
+    return loadDataSource(twain::Device(this, *currentDS));
+}
+
+bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
+    if (state < 3) {
+        LOG_S(ERROR) << "Trying to load DS when DSM is not active";
+        return false;
+    }
+    if (state > 3) {
+        LOG_S(WARNING) << "A source is already open";
+        return false;
+    }
+
+    currentDS = std::make_unique<TW_IDENTITY>();
+    memcpy(currentDS.get(), &((TW_IDENTITY)device), sizeof(TW_IDENTITY));
 
     TW_CALLBACK callback;
     memset(&callback, 0, sizeof(TW_CALLBACK));
@@ -244,7 +261,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
     if ((getIdentity()->SupportedGroups & DF_DSM2) && (currentDS->SupportedGroups & DF_DSM2)) {
-        resultCode = entry(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
+        resultCode = DSM(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
         if (resultCode != TWRC_SUCCESS) {
             LOG_S(ERROR) << "Failed to register callback: " << resultCode;
             return false;

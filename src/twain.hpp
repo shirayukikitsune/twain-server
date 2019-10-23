@@ -118,6 +118,13 @@ namespace dasa::gliese::scanner {
         bool loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id);
 
         /**
+         * Open a connection to a DS
+         * @param device The identifier of the DS
+         * @return Whether the connection was successful
+         */
+        bool loadDataSource(dasa::gliese::scanner::twain::Device &device);
+
+        /**
          * Start acquiring images from a TWAIN DS
          * @param handle A handle to the main application window
          * @param showUI Whether to show the DS UI
@@ -194,6 +201,8 @@ namespace dasa::gliese::scanner {
          */
         void endTransfer();
 
+        void shutdown() noexcept;
+
     private:
         TW_IDENTITY identity{};
         TW_USERINTERFACE ui{};
@@ -205,8 +214,6 @@ namespace dasa::gliese::scanner {
         int state = 1;
         bool useCallbacks = false;
         bool listening = false;
-
-        void shutdown() noexcept;
 
         std::unique_ptr<TW_IDENTITY> currentDS;
         std::shared_ptr<dasa::gliese::scanner::twain::Transfer> activeTransfer;
