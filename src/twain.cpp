@@ -106,7 +106,7 @@ void Twain::openDSM() {
     }
 
     auto parent = application->getParentWindow();
-    if (!DSM.open(getIdentity(), &parent)) {
+    if (!DSM.open(getIdentity(), reinterpret_cast<TW_MEMREF>(&parent))) {
         LOG_S(ERROR) << "Failed to open DSM connection";
         return;
     }
@@ -219,11 +219,12 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
     }
 
     if (!currentDS) {
-        LOG_S(ERROR) << "Could not find DS with id " << id;
+        LOG_S(ERROR) << "Could not find DS with id " << reinterpret_cast<uintptr_t>(id);
         return false;
     }
 
-    return loadDataSource(twain::Device(this, *currentDS));
+    auto device = twain::Device(this, *currentDS);
+    return loadDataSource(device);
 }
 
 bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
@@ -237,7 +238,8 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
     }
 
     currentDS = std::make_unique<TW_IDENTITY>();
-    memcpy(currentDS.get(), &((TW_IDENTITY)device), sizeof(TW_IDENTITY));
+    auto deviceIdentity = (TW_IDENTITY)device;
+    memcpy(currentDS.get(), &deviceIdentity, sizeof(TW_IDENTITY));
 
     TW_CALLBACK callback;
     memset(&callback, 0, sizeof(TW_CALLBACK));

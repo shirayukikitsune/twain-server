@@ -45,3 +45,5 @@ namespace dasa::gliese::scanner::http::handler {
     typedef RequestMapping<boost::beast::http::verb::delete_> DeleteMapping;
     typedef RequestMapping<boost::beast::http::verb::options> OptionsMapping;
 }
+
+boost::beast::http::response<boost::beast::http::dynamic_body> makeErrorResponse(boost::beast::http::status status, const std::string& message, const boost::beast::http::request<boost::beast::http::string_body> &request);

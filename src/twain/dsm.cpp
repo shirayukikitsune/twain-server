@@ -164,7 +164,7 @@ void DSM::free(TW_HANDLE memory)
 #ifdef TWH_CMP_MSC
     ::GlobalFree(memory);
 #else
-    free(memory);
+    ::free(memory);
 #endif
 }
 
@@ -177,7 +177,7 @@ TW_MEMREF DSM::lock(TW_HANDLE memory) {
 #ifdef TWH_CMP_MSC
     return (TW_MEMREF)::GlobalLock(memory);
 #else
-    return memory;
+    return reinterpret_cast<TW_MEMREF>(memory);
 #endif
 }
 

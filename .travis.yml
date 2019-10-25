@@ -10,7 +10,7 @@ matrix:
       osx_image: xcode11.2
     - os: windows
       env: BOOST_ROOT=\usr\local BOOST_INCLUDE_DIR=\usr\local\include\boost-1_71
-      
+
 os:
   - linux
   - osx

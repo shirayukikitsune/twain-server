@@ -42,7 +42,7 @@ extern dasa::gliese::scanner::Application *application;
 using namespace dasa::gliese::scanner::http::handler;
 namespace bh = boost::beast::http;
 
-static bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const std::string& message, const bh::request<bh::string_body> &request) {
+bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const std::string& message, const bh::request<bh::string_body> &request) {
     bh::response<bh::dynamic_body> res{ status, request.version() };
     res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(bh::field::content_type, "text/plain");

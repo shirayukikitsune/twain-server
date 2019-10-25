@@ -76,9 +76,14 @@ bh::response<bh::dynamic_body> DevicesCORSHandler::operator()(bh::request<bh::st
 
 bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
 	json response;
-	auto device = (twain::Device::TW_ID)atoll(((std::string)request["x-device"]).c_str());
+	auto device = (twain::Device::TW_ID)strtoll(((std::string)request["x-device"]).c_str(), nullptr, 0);
+	if (!device) {
+        return makeErrorResponse(bh::status::not_found, "device not found", request);
+	}
 	TW_CAPABILITY cap{ICAP_XRESOLUTION, 0, nullptr};
-	application->getTwain().loadDataSource(device);
+	if (!application->getTwain().loadDataSource(device)) {
+        return makeErrorResponse(bh::status::not_found, "device not found", request);
+	}
     application->getTwain().getCapability(cap);
 
     if (cap.ConType == TWON_ENUMERATION) {
