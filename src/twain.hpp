@@ -25,7 +25,9 @@
 #include "twain/transfer.hpp"
 #include "twain/device.hpp"
 #include "twain/dsm.hpp"
+#include "twain/error_code.hpp"
 
+#include <boost/asio.hpp>
 #include <boost/asio/execution_context.hpp>
 
 namespace dasa::gliese::scanner {
@@ -39,6 +41,10 @@ namespace dasa::gliese::scanner {
     class Twain {
     public:
         explicit Twain(boost::asio::io_context &context);
+
+        boost::asio::io_context& get_io_context() {
+            return context;
+        }
 
         /**
          * Fills the application identity struct
@@ -102,6 +108,27 @@ namespace dasa::gliese::scanner {
          * Returns a list of all available TWAIN DS
          */
         std::list<twain::Device> listSources();
+
+        /**
+         * Returns a list of all available TWAIN DS
+         */
+        std::list<twain::Device> listSources(boost::system::error_code& ec);
+
+        /**
+         * Returns a list of all available TWAIN DS
+         */
+        template <typename CompletionToken>
+        auto async_list_sources(CompletionToken&& token) {
+            auto initiation = [](auto&& token, Twain& twain) {
+                auto handler = [](auto&& token, Twain& twain) {
+                    boost::system::error_code ec;
+                    std::list<twain::Device> sources = twain.listSources(ec);
+                    return token(ec, sources);
+                };
+                return boost::asio::post(twain.get_io_context(), boost::beast::bind_front_handler(handler, std::forward<CompletionToken>(token), std::ref(twain)));
+            };
+            return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::list<twain::Device>)>(initiation, std::forward<CompletionToken>(token), std::ref(*this));
+        }
 
         /**
          * Returns the default TWAIN DS

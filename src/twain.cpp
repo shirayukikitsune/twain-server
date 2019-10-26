@@ -129,14 +129,14 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
 
     if (state < 3) {
         LOG_S(ERROR) << "Trying to list sources when DSM is not active";
-        return sources;
+        throw make_error_code(twain::error_code::invalid_state);
     }
 
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
     auto rc = DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
-        return sources;
+        throw make_error_code(twain::error_code::generic_failure);
     }
 
     do {
@@ -145,6 +145,17 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
     } while (DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
 
     return sources;
+}
+
+std::list<dasa::gliese::scanner::twain::Device> Twain::listSources(boost::system::error_code& ec) {
+    try {
+        return listSources();
+    }
+    catch (boost::system::error_code e) {
+        ec = e;
+
+        return std::list<twain::Device>();
+    }
 }
 
 TW_IDENTITY Twain::getDefaultDataSource() {
@@ -219,7 +230,11 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
     }
 
     if (!currentDS) {
+#ifdef __APPLE__
         LOG_S(ERROR) << "Could not find DS with id " << reinterpret_cast<uintptr_t>(id);
+#else
+        LOG_S(ERROR) << "Could not find DS with id " << id;
+#endif
         return false;
     }
 

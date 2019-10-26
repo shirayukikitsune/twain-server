@@ -33,9 +33,10 @@ target_sources(twain-server PUBLIC
         http/handler/devices.cpp http/handler/devices.hpp
         http/handler/handler.hpp
         http/handler/scan.cpp http/handler/scan.hpp
-        http/handler/status.cpp
+        http/handler/status.cpp http/handler/status.hpp
         twain/device.cpp twain/device.hpp
         twain/dsm.cpp twain/dsm.hpp
+        twain/error_code.cpp twain/error_code.hpp
         twain/transfer.cpp twain/transfer.hpp
         twain/memory_transfer.cpp twain/memory_transfer.hpp
         twain/native_transfer.hpp)
