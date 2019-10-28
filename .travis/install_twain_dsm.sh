@@ -2,7 +2,7 @@
 
 cd $TRAVIS_BUILD_DIR
 
-sudo apt install build-essential cmake debhelper devscripts qt4-qmake libqt4-dev libfreeimage-dev -y
+sudo apt install build-essential cmake debhelper devscripts fakeroot qt4-qmake libqt4-dev libfreeimage-dev -y
 
 git clone https://github.com/twain/twain-dsm.git
 
