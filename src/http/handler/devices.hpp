@@ -47,7 +47,7 @@ namespace dasa::gliese::scanner::http::handler {
             return "/devices-async";
         }
 
-        void handle(const boost::beast::http::request<boost::beast::http::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, boost::system::error_code ec, std::list<twain::Device> devices);
+        void handle(const boost::beast::http::request<boost::beast::http::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<twain::Device> devices);
         void operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) override;
     };
 

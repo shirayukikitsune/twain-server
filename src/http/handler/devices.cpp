@@ -35,7 +35,7 @@ namespace bh = boost::beast::http;
 
 #include <boost/asio/yield.hpp>
 
-void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, boost::system::error_code ec, std::list<dasa::gliese::scanner::twain::Device> devices) {
+void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<dasa::gliese::scanner::twain::Device> devices) {
     reenter(co) {
         for (;;) {
             yield application->getTwain().async_list_sources(std::bind(&DevicesAsyncHandler::handle, this, request, send, co, std::placeholders::_1, std::placeholders::_2));

@@ -106,28 +106,34 @@ namespace dasa::gliese::scanner {
 
         /**
          * Returns a list of all available TWAIN DS
+         *
+         * @throws std::error_code in case of failure
          */
         std::list<twain::Device> listSources();
 
         /**
          * Returns a list of all available TWAIN DS
          */
-        std::list<twain::Device> listSources(boost::system::error_code& ec);
+        std::list<twain::Device> listSources(std::error_code& ec) noexcept;
 
         /**
-         * Returns a list of all available TWAIN DS
+         * Fetches a list of all available DS asynchronously
+         *
+         * @param token Either `boost::asio::future` or a lambda that will be called when the list is fetched
          */
         template <typename CompletionToken>
         auto async_list_sources(CompletionToken&& token) {
-            //auto& twain = *this;
             auto initiation = [](auto&& token, Twain& twain) {
-                return boost::asio::post(twain.get_io_context(), [token, &twain]() {
-                    boost::system::error_code ec;
+                auto executor = boost::asio::get_associated_executor(token, twain.get_io_context());
+                auto handler = [token, &twain]() {
+                    std::error_code ec;
                     std::list<twain::Device> sources = twain.listSources(ec);
                     return token(ec, sources);
-                });
+                };
+                return boost::asio::post(boost::asio::bind_executor(executor, handler));
             };
-            return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::list<twain::Device>)>(initiation, std::forward<CompletionToken>(token), std::ref(*this));
+            return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::list<twain::Device>)>
+                    (initiation, token, std::ref(*this));
         }
 
         /**
@@ -135,7 +141,7 @@ namespace dasa::gliese::scanner {
          */
         TW_IDENTITY getDefaultDataSource();
 
-        TW_STATUSUTF8 getStatus(TW_UINT16 rc);
+        TW_STATUSUTF8 getStatus();
 
         /**
          * Open a connection to a DS
@@ -161,7 +167,7 @@ namespace dasa::gliese::scanner {
         /**
          * Return the current loaded DS
          */
-        pTW_IDENTITY getDataSouce() { return currentDS.get(); }
+        pTW_IDENTITY getDataSource() { return currentDS.get(); }
 
         /**
          * Closes the connection to the current DS
@@ -213,7 +219,7 @@ namespace dasa::gliese::scanner {
                              TW_UINT16 DAT,
                              TW_UINT16 MSG,
                              TW_MEMREF pData) {
-            return DSM(getIdentity(), getDataSouce(), DG, DAT, MSG, pData);
+            return DSM(getIdentity(), getDataSource(), DG, DAT, MSG, pData);
         }
 
         /**
