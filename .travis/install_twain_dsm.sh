@@ -19,7 +19,7 @@ chmod +x ./mkdsm.sh
 rm ./mkdsm.sh~
 
 # Set deb compatibility to 9
-echo "9" > TWAIN_DSM/debian/compats
+echo "9" > TWAIN_DSM/debian/compat
 
 # Disable -Wall and -Werror
 sed -i 's/-Wall//g' TWAIN_DSM/src/CMakeLists.txt
