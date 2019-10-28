@@ -7,3 +7,7 @@
 [submodule "deps/kitsune-ioc"]
 	path = deps/kitsune-ioc
 	url = https://github.com/shirayukikitsune/ioc.git
+[submodule "deps/bandit/bandit"]
+	path = deps/bandit/bandit
+	url = https://github.com/banditcpp/bandit
+	branch = headers-only

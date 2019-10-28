@@ -47,7 +47,7 @@ bool DSM::load() {
     auto library = LOADLIBRARY(dsm_lib_path.c_str());
 
     if (library == nullptr) {
-        ABORT_S() << "Failed to open TWAIN library at path [" << dsm_lib_path << "]";
+        LOG_S(FATAL) << "Failed to open TWAIN library at path [" << dsm_lib_path << "]";
         return false;
     }
 
@@ -88,6 +88,7 @@ void DSM::unload() {
     }
 
     dsm_module = nullptr;
+    entry = nullptr;
     state(State::Unloaded);
     LOG_F(INFO, "DSM library unloaded");
 }
