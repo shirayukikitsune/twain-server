@@ -44,7 +44,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     argv[argc] = nullptr;
 
-    loguru::init(argc, argv, "-v");
+    loguru::init(argc, argv);
 
     for (int i = 0; i < argc; ++i) {
         delete[] argv[i];
