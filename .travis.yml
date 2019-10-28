@@ -6,10 +6,10 @@ matrix:
   include:
     - os: linux
       dist: bionic
-    - os: osx
-      osx_image: xcode11.2
-    - os: windows
-      env: BOOST_ROOT=\usr\local BOOST_INCLUDE_DIR=\usr\local\include\boost-1_71
+    #- os: osx
+    #  osx_image: xcode11.2
+    #- os: windows
+    #  env: BOOST_ROOT=\usr\local BOOST_INCLUDE_DIR=\usr\local\include\boost-1_71
 
 os:
   - linux
@@ -28,5 +28,7 @@ install:
 
 script:
   - mkdir build
-  - cmake -DCMAKE_BUILD_TYPE=Release . -B build
-  - cmake --build . --target twain-server
+  - cd build
+  - cmake -DCMAKE_BUILD_TYPE=Release ..
+  - cmake --build .
+  - ctest -V
