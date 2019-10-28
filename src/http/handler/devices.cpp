@@ -35,39 +35,44 @@ namespace bh = boost::beast::http;
 
 #include <boost/asio/yield.hpp>
 
-bh::response<bh::dynamic_body> DevicesAsyncHandler::operator()(bh::request<bh::string_body>&& request) {
-    reenter(this) for(;;) {
-        yield{
-            auto deviceList = application->getTwain().async_list_sources([this, request](boost::system::error_code ec, std::list<dasa::gliese::scanner::twain::Device> deviceList) {
-                this->ec = ec; this->deviceList = deviceList;
-                return (*this)(request);
-            });
+void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, boost::system::error_code ec, std::list<dasa::gliese::scanner::twain::Device> devices) {
+    reenter(co) {
+        for (;;) {
+            yield application->getTwain().async_list_sources(std::bind(&DevicesAsyncHandler::handle, this, request, send, co, std::placeholders::_1, std::placeholders::_2));
 
-            json response_body;
-            auto defaultDevice = application->getTwain().getDefaultDataSource();
-            size_t i = 0;
-            for (auto& device : deviceList) {
-                auto deviceJson = device.toJson();
-                if (device == defaultDevice.Id) {
-                    deviceJson["default"] = true;
-                }
-                response_body[i++] = deviceJson;
-            }
-
-            bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
-            res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-            res.set(bh::field::content_type, "application/json");
-
-            auto origin = request[bh::field::origin];
-            if (!origin.empty()) {
-                res.set(bh::field::access_control_allow_origin, origin);
-            }
-            res.keep_alive(request.keep_alive());
-            boost::beast::ostream(res.body()) << response_body;
-            res.prepare_payload();
-            return res;
+            break;
         }
+
+        json response_body;
+        auto defaultDevice = application->getTwain().getDefaultDataSource();
+        size_t i = 0;
+        for (auto& device : devices) {
+            auto deviceJson = device.toJson();
+            if (device == defaultDevice.Id) {
+                deviceJson["default"] = true;
+            }
+            response_body[i++] = deviceJson;
+        }
+
+        bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+        res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(bh::field::content_type, "application/json");
+
+        auto origin = request[bh::field::origin];
+        if (!origin.empty()) {
+            res.set(bh::field::access_control_allow_origin, origin);
+        }
+        res.keep_alive(request.keep_alive());
+        boost::beast::ostream(res.body()) << response_body;
+        res.prepare_payload();
+        send(res);
     }
+
+}
+
+void DevicesAsyncHandler::operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) {
+    boost::asio::coroutine co;
+    handle(request, send, co, {}, {});
 }
 
 #include <boost/asio/unyield.hpp>

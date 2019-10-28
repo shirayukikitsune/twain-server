@@ -119,13 +119,13 @@ namespace dasa::gliese::scanner {
          */
         template <typename CompletionToken>
         auto async_list_sources(CompletionToken&& token) {
+            //auto& twain = *this;
             auto initiation = [](auto&& token, Twain& twain) {
-                auto handler = [](auto&& token, Twain& twain) {
+                return boost::asio::post(twain.get_io_context(), [token, &twain]() {
                     boost::system::error_code ec;
                     std::list<twain::Device> sources = twain.listSources(ec);
                     return token(ec, sources);
-                };
-                return boost::asio::post(twain.get_io_context(), boost::beast::bind_front_handler(handler, std::forward<CompletionToken>(token), std::ref(twain)));
+                });
             };
             return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::list<twain::Device>)>(initiation, std::forward<CompletionToken>(token), std::ref(*this));
         }

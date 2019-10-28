@@ -15,6 +15,11 @@ else()
   target_link_libraries(twain-server PRIVATE pthread ${FREEIMAGE_LIBRARIES})
 endif()
 
+# Silence a few warnings on MSVC
+if (MSVC)
+  target_compile_definitions(twain-server PUBLIC _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS BOOST_ALL_NO_LIB)
+endif()
+
 # In OSX, TWAIN library is a framework that must be statically linked
 if (APPLE)
     find_library(TWAIN_LIBRARY TWAIN)
@@ -43,7 +48,6 @@ target_sources(twain-server PUBLIC
 
 target_compile_definitions(twain-server PUBLIC LOGURU_WITH_STREAMS=1)
 target_include_directories(twain-server PUBLIC ${Boost_INCLUDE_DIR} ${FREEIMAGE_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/deps/loguru)
-target_link_directories(twain-server PUBLIC ${Boost_LIBRARY_DIR_DEBUG})
 target_link_libraries(twain-server PRIVATE nlohmann_json::nlohmann_json
     kitsune::ioc
     loguru
