@@ -12,9 +12,9 @@ mv mkdsm.sh mkdsm.sh~
 head -n96 mkdsm.sh~ > mkdsm.sh
 cat ../.travis/ubuntu18.04-mkdsm-patch >> mkdsm.sh
 tail -n +97 mkdsm.sh~ >> mkdsm.sh
-sed -i '204d' mkdsm.sh
 sed -i '203d' mkdsm.sh
-sed -i '185d' mkdsm.sh
+sed -i '202d' mkdsm.sh
+sed -i '184d' mkdsm.sh
 chmod +x ./mkdsm.sh
 rm ./mkdsm.sh~
 

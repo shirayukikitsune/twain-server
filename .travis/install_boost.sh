@@ -7,5 +7,5 @@ cd boost_1_71_0
 if [[ "$TRAVIS_OS_NAME" = "linux" || "$TRAVIS_OS_NAME" = "osx" ]]; then
   sudo ./b2 --with-filesystem --with-system install
 else
-  ./b2 --with-filesystem --with-system --build-type=complete install toolset=msvc
+  ./b2 --with-date_time --with-filesystem --with-system --build-type=complete install toolset=msvc
 fi
