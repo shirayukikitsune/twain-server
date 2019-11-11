@@ -2,7 +2,7 @@
 
 cd $TRAVIS_BUILD_DIR
 
-sudo apt install build-essential cmake debhelper devscripts qt4-qmake libqt4-dev libfreeimage-dev -y
+sudo apt install build-essential cmake debhelper devscripts fakeroot qt4-qmake libqt4-dev libfreeimage-dev -y
 
 git clone https://github.com/twain/twain-dsm.git
 
@@ -12,14 +12,14 @@ mv mkdsm.sh mkdsm.sh~
 head -n96 mkdsm.sh~ > mkdsm.sh
 cat ../.travis/ubuntu18.04-mkdsm-patch >> mkdsm.sh
 tail -n +97 mkdsm.sh~ >> mkdsm.sh
-sed -i '204d' mkdsm.sh
 sed -i '203d' mkdsm.sh
-sed -i '185d' mkdsm.sh
+sed -i '202d' mkdsm.sh
+sed -i '184d' mkdsm.sh
 chmod +x ./mkdsm.sh
 rm ./mkdsm.sh~
 
 # Set deb compatibility to 9
-echo "9" > TWAIN_DSM/debian/compats
+echo "9" > TWAIN_DSM/debian/compat
 
 # Disable -Wall and -Werror
 sed -i 's/-Wall//g' TWAIN_DSM/src/CMakeLists.txt

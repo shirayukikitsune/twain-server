@@ -33,7 +33,7 @@ extern dasa::gliese::scanner::windows::Application *windows_application;
 extern dasa::gliese::scanner::Application *application;
 
 int main(int argc, char **argv) {
-    loguru::init(argc, argv, "-v");
+    loguru::init(argc, argv);
 
 	windows_application = new Application;
 	application = windows_application;

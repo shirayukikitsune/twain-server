@@ -187,7 +187,7 @@ void WINAPI service_main(DWORD argc, LPTSTR* argv) {
 }
 
 int main(int argc, char** argv) {
-    loguru::init(argc, argv, "-v");
+    loguru::init(argc, argv);
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-Install") == 0) {

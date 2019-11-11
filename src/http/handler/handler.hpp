@@ -22,6 +22,8 @@
 #include <kitsune/ioc/service>
 #include <string>
 
+boost::beast::http::response<boost::beast::http::dynamic_body> makeErrorResponse(boost::beast::http::status status, const std::string& message, const boost::beast::http::request<boost::beast::http::string_body> &request);
+
 namespace dasa::gliese::scanner::http::handler {
     class RouteHandler : public kitsune::ioc::ServiceBase<RouteHandler> {
 	public:
@@ -29,7 +31,12 @@ namespace dasa::gliese::scanner::http::handler {
 		[[nodiscard]] virtual boost::beast::http::verb method() const = 0;
 		[[nodiscard]] virtual boost::beast::string_view route() const = 0;
 
-        virtual boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body> && request) = 0;
+        virtual boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body> && request) {
+            return makeErrorResponse(boost::beast::http::status::not_implemented, "not implemented", request);
+        }
+        virtual void operator()(boost::beast::http::request<boost::beast::http::string_body> && request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send_fn) {
+            send_fn((*this)(std::move(request)));
+        }
 	};
 
     template <boost::beast::http::verb Method>
@@ -45,5 +52,3 @@ namespace dasa::gliese::scanner::http::handler {
     typedef RequestMapping<boost::beast::http::verb::delete_> DeleteMapping;
     typedef RequestMapping<boost::beast::http::verb::options> OptionsMapping;
 }
-
-boost::beast::http::response<boost::beast::http::dynamic_body> makeErrorResponse(boost::beast::http::status status, const std::string& message, const boost::beast::http::request<boost::beast::http::string_body> &request);

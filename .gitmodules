@@ -1,9 +1,18 @@
 [submodule "deps/loguru"]
 	path = deps/loguru
 	url = https://github.com/emilk/loguru.git
+	shallow = true
 [submodule "deps/json"]
 	path = deps/json
 	url = https://github.com/nlohmann/json.git
+	shallow = true
 [submodule "deps/kitsune-ioc"]
 	path = deps/kitsune-ioc
 	url = https://github.com/shirayukikitsune/ioc.git
+	fetchRecurseSubmodules = false
+	shallow = true
+[submodule "banditcpp"]
+	path = deps/bandit/bandit
+	url = https://github.com/banditcpp/bandit
+	shallow = true
+	branch = headers-only

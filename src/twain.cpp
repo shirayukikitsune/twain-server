@@ -129,14 +129,14 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
 
     if (state < 3) {
         LOG_S(ERROR) << "Trying to list sources when DSM is not active";
-        return sources;
+        throw twain::twain_error(twain::error_code::invalid_state);
     }
 
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
     auto rc = DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
-        return sources;
+        throw twain::twain_error(twain::error_code::generic_failure);
     }
 
     do {
@@ -145,6 +145,16 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
     } while (DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
 
     return sources;
+}
+
+std::list<dasa::gliese::scanner::twain::Device> Twain::listSources(std::error_code& ec) noexcept {
+    try {
+        return listSources();
+    }
+    catch (std::error_code& e) {
+        ec = e;
+        return std::list<twain::Device>();
+    }
 }
 
 TW_IDENTITY Twain::getDefaultDataSource() {
@@ -158,12 +168,12 @@ TW_IDENTITY Twain::getDefaultDataSource() {
 
     auto rc = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETDEFAULT, reinterpret_cast<TW_MEMREF>(&current));
     if (rc != TWRC_SUCCESS) {
-        getStatus(rc);
+        getStatus();
     }
     return current;
 }
 
-TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
+TW_STATUSUTF8 Twain::getStatus() {
     TW_STATUSUTF8 twStatus;
     memset(&twStatus, 0, sizeof(TW_STATUSUTF8));
 
@@ -172,13 +182,13 @@ TW_STATUSUTF8 Twain::getStatus(TW_UINT16) {
         return twStatus;
     }
 
-    DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
+    DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
     return twStatus;
 }
 
 static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT32 /*dg*/, TW_UINT16 /*dat*/, TW_UINT16 message, TW_MEMREF /*data*/) {
     auto& twain = application->getTwain();
-    if (origin == nullptr || origin->Id != twain.getDataSouce()->Id) {
+    if (origin == nullptr || origin->Id != twain.getDataSource()->Id) {
         return TWRC_FAILURE;
     }
 
@@ -219,7 +229,11 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
     }
 
     if (!currentDS) {
+#ifdef __APPLE__
         LOG_S(ERROR) << "Could not find DS with id " << reinterpret_cast<uintptr_t>(id);
+#else
+        LOG_S(ERROR) << "Could not find DS with id " << id;
+#endif
         return false;
     }
 
@@ -299,7 +313,7 @@ void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
         ui.ModalUI = 1;
         ui.hParent = handle;
 
-        auto resultCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+        auto resultCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
         if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
             LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
             return;
@@ -320,7 +334,7 @@ bool Twain::closeDS() {
     auto resultCode = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_CLOSEDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
 
     if (resultCode != TWRC_SUCCESS) {
-        auto status = getStatus(resultCode);
+        auto status = getStatus();
         LOG_S(ERROR) << "Failed to close DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
     }
 
@@ -337,10 +351,10 @@ void Twain::disableDS() {
         return;
     }
 
-    auto resultCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+    auto resultCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
 
     if (resultCode != TWRC_SUCCESS) {
-        auto status = getStatus(resultCode);
+        auto status = getStatus();
         LOG_S(ERROR) << "Failed to disable DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
     }
 
@@ -393,15 +407,15 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
             break;
 
         default:
-            goto finishing;
+            goto cleanup;
     }
 
-    returnCode = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+    returnCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
         LOG_S(ERROR) << "Failed to set capability";
     }
 
-finishing:
+cleanup:
     DSM.unlock(cap.hContainer);
     DSM.free(cap.hContainer);
 
@@ -435,7 +449,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue) {
 	pVal->Item = *_pValue;
 
 	// capability structure is set, make the call to the source now
-	twrc = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+	twrc = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
 	if (TWRC_FAILURE == twrc)
 	{
 		LOG_S(ERROR) << "Could not set capability";
@@ -502,7 +516,7 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
     _cap.ConType = TWON_DONTCARE16;
 
     // capability structure is set, make the call to the source now
-    TW_UINT16 twrc = DSM(getIdentity(), getDataSouce(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
+    TW_UINT16 twrc = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
 
     return twrc;
 }

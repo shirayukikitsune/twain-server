@@ -19,6 +19,8 @@
 #pragma once
 
 #include "handler.hpp"
+#include "../../twain/device.hpp"
+#include <boost/asio/coroutine.hpp>
 
 namespace dasa::gliese::scanner::http::handler {
     class DevicesHandler : public kitsune::ioc::Service<DevicesHandler, GetMapping> {
@@ -34,6 +36,25 @@ namespace dasa::gliese::scanner::http::handler {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/devices";
+        }
+
+        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    };
+
+    class DevicesAsyncHandler : public kitsune::ioc::Service<DevicesAsyncHandler, GetMapping> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices-async";
+        }
+
+        void handle(const boost::beast::http::request<boost::beast::http::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<twain::Device> devices);
+        void operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) override;
+    };
+
+    class DevicesAsyncCORSHandler : public kitsune::ioc::Service<DevicesAsyncCORSHandler, OptionsMapping> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices-async";
         }
 
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;

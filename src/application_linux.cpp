@@ -72,7 +72,7 @@ void Application::stop() {
 }
 
 int main(int argc, char **argv) {
-    loguru::init(argc, argv, "-v");
+    loguru::init(argc, argv);
 
     linux_application = new Application;
     application = linux_application;

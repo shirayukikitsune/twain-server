@@ -139,7 +139,7 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 		memcpy(&memXferBuffer, &memXferTemplate, sizeof(TW_IMAGEMEMXFER));
 		memset(memXferBuffer.Memory.TheMem, 0, memXferBuffer.Memory.Length);
 
-		rc = (*twain)(twain->getIdentity(), twain->getDataSouce(), DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
+		rc = (*twain)(twain->getIdentity(), twain->getDataSource(), DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
 
 		if (rc == TWRC_CANCEL) {
 			LOG_S(WARNING) << "Cancelled transfer while trying to get data";

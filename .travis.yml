@@ -2,19 +2,19 @@ language: cpp
 cache: ccache
 compiler: gcc
 
-matrix:
-  include:
-    - os: linux
-      dist: bionic
-    - os: osx
-      osx_image: xcode11.2
-    - os: windows
-      env: BOOST_ROOT=\usr\local BOOST_INCLUDE_DIR=\usr\local\include\boost-1_71
+#matrix:
+#  include:
+#    - os: linux
+#      dist: bionic
+#    - os: osx
+#      osx_image: xcode11.2
+#    - os: windows
+#      env: BOOST_ROOT=\usr\local BOOST_INCLUDE_DIR=\usr\local\include\boost-1_71
 
 os:
   - linux
-  - osx
-  - windows
+#  - osx
+#  - windows
 
 dist: bionic
 osx_image: xcode11.2
@@ -23,10 +23,12 @@ addons:
     update: true
 
 install:
-  - "if [[ \"$TRAVIS_OS_NAME\" = \"linux\" ]]; then ./.travis/install_twain_dsm.sh ; fi"
-  - ./.travis/install_boost.sh
+  - "if [[ \"$TRAVIS_OS_NAME\" = \"linux\" ]]; then sudo ./.travis/install_twain_dsm.sh ; fi"
+  - sudo ./.travis/install_boost.sh
 
 script:
   - mkdir build
-  - cmake -DCMAKE_BUILD_TYPE=Release . -B build
-  - cmake --build . --target twain-server
+  - cd build
+  - cmake -DCMAKE_BUILD_TYPE=Release ..
+  - cmake --build .
+  - ctest -V

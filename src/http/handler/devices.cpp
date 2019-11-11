@@ -22,6 +22,8 @@
 
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable);
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesAsyncHandler, devicesAsyncHandlerInjectable);
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesAsyncCORSHandler, devicesAsyncCorsHandlerInjectable);
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPIHandler, devicesDPIHandlerInjectable);
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPICORSHandler, devicesDPICorsHandlerInjectable);
 
@@ -30,6 +32,67 @@ extern dasa::gliese::scanner::Application *application;
 using namespace dasa::gliese::scanner::http::handler;
 using nlohmann::json;
 namespace bh = boost::beast::http;
+
+#include <boost/asio/yield.hpp>
+
+void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<dasa::gliese::scanner::twain::Device> devices) {
+    reenter(co) {
+        for (;;) {
+            yield application->getTwain().async_list_sources(std::bind(&DevicesAsyncHandler::handle, this, request, send, co, std::placeholders::_1, std::placeholders::_2));
+
+            break;
+        }
+
+        json response_body;
+        auto defaultDevice = application->getTwain().getDefaultDataSource();
+        size_t i = 0;
+        for (auto& device : devices) {
+            auto deviceJson = device.toJson();
+            if (device == defaultDevice.Id) {
+                deviceJson["default"] = true;
+            }
+            response_body[i++] = deviceJson;
+        }
+
+        bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+        res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(bh::field::content_type, "application/json");
+
+        auto origin = request[bh::field::origin];
+        if (!origin.empty()) {
+            res.set(bh::field::access_control_allow_origin, origin);
+        }
+        res.keep_alive(request.keep_alive());
+        boost::beast::ostream(res.body()) << response_body;
+        res.prepare_payload();
+        send(res);
+    }
+
+}
+
+void DevicesAsyncHandler::operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) {
+    boost::asio::coroutine co;
+    handle(request, send, co, {}, {});
+}
+
+#include <boost/asio/unyield.hpp>
+
+
+bh::response<bh::dynamic_body> DevicesAsyncCORSHandler::operator()(bh::request<bh::string_body>&& request) {
+    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+
+    auto origin = request[bh::field::origin];
+    if (!origin.empty()) {
+        res.set(bh::field::access_control_allow_origin, origin);
+        res.set(bh::field::access_control_allow_methods, "GET");
+        res.set(bh::field::access_control_allow_headers, "Server, Content-Type");
+    }
+
+    res.keep_alive(request.keep_alive());
+    res.prepare_payload();
+    return res;
+}
 
 bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string_body>&& request) {
 	json response;
