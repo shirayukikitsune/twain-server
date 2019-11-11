@@ -43,6 +43,7 @@ namespace dasa::gliese::scanner::windows
         Twain twain;
         HWND hwnd = nullptr;
         DWORD myThreadId = 0;
+        HANDLE application_handle;
     };
 
 }
