@@ -40,6 +40,20 @@ Application::Application() : twain(getTwainIoContext()) {
 void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listener> listener) {
     LOG_SCOPE_FUNCTION(INFO);
     LOG_S(INFO) << "Initializing Windows application";
+
+    LOG_S(INFO) << "Verifying for another instance";
+    application_handle = CreateEvent(nullptr, FALSE, FALSE, L"Global\\DasaTwainServer");
+    if (!application_handle) {
+        ABORT_S() << "Failed to create event";
+        return;
+    }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(application_handle);
+        application_handle = nullptr;
+        ABORT_S() << "Another instance of the application is already running";
+        return;
+    }
+
     dasa::gliese::scanner::Application::initialize(listener);
 
     LOG_S(INFO) << "Loading TWAIN DSM library";
@@ -128,4 +142,5 @@ void Application::run() {
 
 void Application::stop() {
     PostThreadMessage(myThreadId, WM_QUIT, 0, 0);
+    CloseHandle(application_handle);
 }
