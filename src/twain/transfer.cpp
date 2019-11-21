@@ -24,6 +24,10 @@
 
 using namespace dasa::gliese::scanner::twain;
 
+Transfer::~Transfer() {
+    clearPending();
+}
+
 void Transfer::transferAll(std::ostream& outputStream) {
 	LOG_SCOPE_FUNCTION(INFO);
 

@@ -37,7 +37,7 @@ namespace dasa::gliese::scanner::twain {
     public:
 		Transfer(dasa::gliese::scanner::Twain* twain, std::string outputMime)
 		    : twain(twain), outputMime(std::move(outputMime)) {}
-		virtual ~Transfer() = default;
+		virtual ~Transfer();
 
 		virtual std::string getTransferMIME() = 0;
 		virtual std::string getDefaultMIME() = 0;
