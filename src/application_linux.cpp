@@ -46,8 +46,7 @@ void Application::initialize(std::shared_ptr<http::Listener> listener) {
     signal(SIGTERM, trapStop);
 	signal(SIGINT, trapStop);
 
-    LOG_S(INFO) << "Loading TWAIN DSM library";
-    twain.loadDSM("/usr/local/lib/libtwaindsm.so");
+    twain.dsm().path("/usr/local/lib/libtwaindsm.so");
 }
 
 void Application::run() {
@@ -60,7 +59,13 @@ void Application::run() {
         ioc.run();
     });
 
-    twain_ioc.run();
+    while (listener->is_running()) {
+        if (twain_ioc.stopped()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            twain_ioc.restart();
+        }
+        twain_ioc.run();
+    }
 
     thread.join();
 }
@@ -86,21 +91,8 @@ int main(int argc, char **argv) {
 
     LOG_F(INFO, "Application initialized");
 
-    LOG_S(INFO) << "Connecting to TWAIN";
+    LOG_S(INFO) << "Filling TWAIN identity";
     application->getTwain().fillIdentity();
-    application->getTwain().openDSM();
-
-    LOG_S(INFO) << "Listing TWAIN devices";
-    auto devices = application->getTwain().listSources();
-    for (auto & device : devices) {
-        LOG_S(INFO) << device;
-    }
-
-    auto device = application->getTwain().getDefaultDataSource();
-    LOG_S(INFO) << "Default device: " << device;
 
     application->run();
-
-    LOG_F(INFO, "Closing TWAIN DSM");
-    application->getTwain().closeDSM();
 }

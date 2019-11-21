@@ -41,6 +41,9 @@ namespace dasa::gliese::scanner {
     class Twain {
     public:
         explicit Twain(boost::asio::io_context &context);
+        ~Twain() {
+            shutdown();
+        }
 
         boost::asio::io_context& get_io_context() {
             return context;
@@ -246,7 +249,6 @@ namespace dasa::gliese::scanner {
 
         int state = 1;
         bool useCallbacks = false;
-        bool listening = false;
 
         std::unique_ptr<TW_IDENTITY> currentDS;
         std::shared_ptr<dasa::gliese::scanner::twain::Transfer> activeTransfer;

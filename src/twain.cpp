@@ -62,7 +62,10 @@ void Twain::loadDSM(const char *path) {
         return;
     }
 
-    DSM.path(path);
+    if (path != nullptr) {
+        DSM.path(path);
+    }
+
     if (!DSM.load()) {
         LOG_S(ERROR) << "Failed to load DSM library";
         return;
@@ -125,6 +128,7 @@ void Twain::closeDSM() {
 }
 
 std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
+    LOG_SCOPE_FUNCTION(INFO);
     std::list<twain::Device> sources;
 
     if (state < 3) {
@@ -135,7 +139,8 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
     TW_IDENTITY current;
     memset(&current, 0, sizeof(TW_IDENTITY));
     auto rc = DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETFIRST, reinterpret_cast<TW_MEMREF>(&current));
-    if (rc != TWRC_SUCCESS) {
+    if (rc != TWRC_SUCCESS && rc != TWRC_ENDOFLIST) {
+        LOG_S(ERROR) << "Failed to get the list of available sources";
         throw twain::twain_error(twain::error_code::generic_failure);
     }
 
@@ -144,6 +149,8 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
         memset(&current, 0, sizeof(TW_IDENTITY));
     } while (DSM(&identity, nullptr, DG_CONTROL, DAT_IDENTITY, MSG_GETNEXT, reinterpret_cast<TW_MEMREF>(&current)) == TWRC_SUCCESS);
 
+    LOG_S(INFO) << "Found " << sources.size() << " DS";
+
     return sources;
 }
 
@@ -151,8 +158,8 @@ std::list<dasa::gliese::scanner::twain::Device> Twain::listSources(std::error_co
     try {
         return listSources();
     }
-    catch (std::error_code& e) {
-        ec = e;
+    catch (std::system_error& e) {
+        ec = e.code();
         return std::list<twain::Device>();
     }
 }
@@ -621,10 +628,7 @@ void Twain::reset() {
         return;
     }
 
-    if (!DSM.load()) {
-        return;
-    }
-    state = 2;
+    loadDSM(nullptr);
     openDSM();
 }
 
