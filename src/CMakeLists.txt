@@ -35,6 +35,7 @@ target_sources(twain-server PUBLIC
         http/listener.cpp http/listener.hpp
         http/session.cpp http/session.hpp
         http/router.cpp http/router.hpp
+        http/handler/cors.cpp http/handler/cors.hpp
         http/handler/devices.cpp http/handler/devices.hpp
         http/handler/handler.hpp
         http/handler/scan.cpp http/handler/scan.hpp

@@ -52,22 +52,6 @@ bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const std::s
     return res;
 }
 
-static bh::response<bh::dynamic_body> makeCORSResponse(const bh::request<bh::string_body> &request) {
-    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
-    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        res.set(bh::field::access_control_allow_origin, origin);
-        res.set(bh::field::access_control_allow_methods, "GET, POST");
-        res.set(bh::field::access_control_allow_headers, "Server, Content-Type, x-has-next");
-    }
-
-    res.keep_alive(request.keep_alive());
-    res.prepare_payload();
-    return res;
-}
-
 bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& request) {
 	const auto& rawBody = request.body();
 	if (rawBody.empty()) {
@@ -155,10 +139,7 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 
 	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
 	return response;
 }
@@ -171,17 +152,10 @@ bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::st
 	if (twain.getState() == 6) {
 		twain.startScan(outputMime);
 	}
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
 	response.prepare_payload();
 	return response;
-}
-
-bh::response<bh::dynamic_body> PrepareScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
 }
 
 bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::string_body>&& request) {
@@ -193,10 +167,7 @@ bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::st
     bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
     response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
     response.set(bh::field::content_type, "application/json");
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
     nlohmann::json body;
     body["hasNext"] = transfer->hasPending();
@@ -204,10 +175,6 @@ bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::st
     boost::beast::ostream(response.body()) << body.dump();
     response.prepare_payload();
     return response;
-}
-
-bh::response<bh::dynamic_body> HasNextScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
 }
 
 bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<bh::string_body>&& request) {
@@ -219,10 +186,7 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	response.set(bh::field::content_type, "application/json");
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
 	auto imageInfo = transfer->prepare();
 	nlohmann::json body;
@@ -243,10 +207,6 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 	return response;
 }
 
-bh::response<bh::dynamic_body> NextImageDataScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
-}
-
 bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::string_body>&& request) {
     auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
@@ -262,10 +222,7 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
 	response.set(bh::field::content_type, transfer->getTransferMIME());
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
 	auto os = boost::beast::ostream(response.body());
 
@@ -278,10 +235,6 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 	return response;
 }
 
-bh::response<bh::dynamic_body> NextScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
-}
-
 bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string_body>&& request) {
     auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
@@ -290,10 +243,7 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
 
 	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
 	response.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        response.set(bh::field::access_control_allow_origin, origin);
-    }
+    add_cors(request, response);
 
     auto& twain = application->getTwain();
 	transfer->clearPending();
@@ -306,20 +256,13 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
 	return response;
 }
 
-bh::response<bh::dynamic_body> EndScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
-}
-
 bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_body>&& request) {
 	auto response = prepareScan(request);
 	auto& twain = application->getTwain();
 
     if (twain.getState() == 6) {
         auto outputMime = (std::string)request[bh::field::accept];
-        auto origin = request[bh::field::origin];
-        if (!origin.empty()) {
-            response.set(bh::field::access_control_allow_origin, origin);
-        }
+        add_cors(request, response);
         auto os = boost::beast::ostream(response.body());
         auto transfer = twain.startScan(outputMime);
         response.set(bh::field::content_type, "image/jpeg");
@@ -332,8 +275,4 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
 
     response.prepare_payload();
     return response;
-}
-
-bh::response<bh::dynamic_body> ScanCORSHandler::operator()(bh::request<bh::string_body> &&request) {
-    return makeCORSResponse(request);
 }

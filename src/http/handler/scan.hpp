@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "cors.hpp"
 #include "handler.hpp"
 
 namespace dasa::gliese::scanner::http::handler {
@@ -30,13 +31,16 @@ namespace dasa::gliese::scanner::http::handler {
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
 
-    class PrepareScanCORSHandler : public kitsune::ioc::Service<PrepareScanCORSHandler, OptionsMapping> {
+    class PrepareScanCORSHandler : public CORSMapping<PrepareScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan/prepare";
         }
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    protected:
+        [[nodiscard]] boost::beast::string_view methods() final {
+            return "POST";
+        }
     };
 
 	class HasNextScanHandler : public kitsune::ioc::Service<HasNextScanHandler, GetMapping> {
@@ -48,13 +52,11 @@ namespace dasa::gliese::scanner::http::handler {
 		boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
 	};
 
-    class HasNextScanCORSHandler : public kitsune::ioc::Service<HasNextScanCORSHandler, OptionsMapping> {
+    class HasNextScanCORSHandler : public CORSMapping<HasNextScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan/has-next";
         }
-
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
 
 	class NextImageDataScanHandler : public kitsune::ioc::Service<NextImageDataScanHandler, GetMapping> {
@@ -66,13 +68,11 @@ namespace dasa::gliese::scanner::http::handler {
 		boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
 	};
 
-    class NextImageDataScanCORSHandler : public kitsune::ioc::Service<NextImageDataScanCORSHandler, OptionsMapping> {
+    class NextImageDataScanCORSHandler : public CORSMapping<NextImageDataScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan/prepare-next";
         }
-
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
 
 	class NextScanHandler : public kitsune::ioc::Service<NextScanHandler, GetMapping> {
@@ -84,13 +84,16 @@ namespace dasa::gliese::scanner::http::handler {
 		boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
 	};
 
-    class NextScanCORSHandler : public kitsune::ioc::Service<NextScanCORSHandler, OptionsMapping> {
+    class NextScanCORSHandler : public CORSMapping<NextScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan/next";
         }
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    protected:
+        [[nodiscard]] boost::beast::string_view headers() final {
+            return "Server, Content-Type, X-Has-Next";
+        }
     };
 
 	class EndScanHandler : public kitsune::ioc::Service<EndScanHandler, PostMapping> {
@@ -102,13 +105,16 @@ namespace dasa::gliese::scanner::http::handler {
 		boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
 	};
 
-    class EndScanCORSHandler : public kitsune::ioc::Service<EndScanCORSHandler, OptionsMapping> {
+    class EndScanCORSHandler : public CORSMapping<EndScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan/end";
         }
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    protected:
+        [[nodiscard]] boost::beast::string_view methods() final {
+            return "POST";
+        }
     };
 
 	class ScanHandler : public kitsune::ioc::Service<ScanHandler, PostMapping> {
@@ -120,12 +126,15 @@ namespace dasa::gliese::scanner::http::handler {
 		boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
 	};
 
-    class ScanCORSHandler : public kitsune::ioc::Service<EndScanCORSHandler, OptionsMapping> {
+    class ScanCORSHandler : public CORSMapping<ScanCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/scan";
         }
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    protected:
+        [[nodiscard]] boost::beast::string_view methods() final {
+            return "POST";
+        }
     };
 }
