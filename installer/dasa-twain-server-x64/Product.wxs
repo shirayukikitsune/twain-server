@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Product Id="*" Codepage="65001" Name="TWAIN Server" Language="1033" Version="1.0.0.0" Manufacturer="Diagnósticos da América S.A." UpgradeCode="2b6fca56-39b2-4c74-a87c-a69a3397538e">
-        <Package InstallerVersion="301" Compressed="yes" InstallScope="perMachine" />
+        <Package InstallerVersion="301" Platform="x64" Compressed="yes" InstallScope="perMachine" />
 
         <Condition Message="This application requires Windows 7 (64-bit) or later"><![CDATA[VersionNT >= 601]]></Condition>
 
@@ -11,16 +11,18 @@
         <Feature Id="ProductFeature" Title="TWAIN Server" Level="1">
             <ComponentGroupRef Id="ProductComponents" />
         </Feature>
-        <Feature Id="VCRedist" Title="Visual C++ 2017 x64 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
+        <Feature Id="VCRedist" Title="Visual C++ 2017 x64 Runtime" Level="1">
             <MergeRef Id="VCRedist"/>
         </Feature>
-
-        <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
+        <Feature Id="TWAINDSM" Title="TWAIN DSM" Level="1">
+            <MergeRef Id="TWAINDSM"/>
+        </Feature>
     </Product>
 
     <Fragment>
         <Directory Id="TARGETDIR" Name="SourceDir">
-            <Merge Id="VCRedist" SourceFile="src\Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
+            <Merge Id="VCRedist" SourceFile="src\Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="1033"/>
+            <Merge Id="TWAINDSM" SourceFile="src\TWAINDSM64.msm" DiskId="1" Language="1033"/>
             <Directory Id="ProgramFiles64Folder">
                 <Directory Id="CompanyFolder" Name="DASA">
                     <Directory Id="INSTALLFOLDER" Name="TWAIN Server" />
@@ -31,16 +33,20 @@
 
     <Fragment>
         <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-            <Component Guid="0ee853ed-1c64-4904-9074-73948ffecf73">
+            <Component Guid="0ee853ed-1c64-4904-9074-73948ffecf73" Win64="yes">
                 <File Id="twain_server" Name="twain-server.exe" Source="src\twain-server-x64.exe" Checksum="yes" KeyPath="yes" Vital="yes" />
             </Component>
-            <Component Id="AssistanceAutoStart" Guid="e4f9fc32-f437-493d-9812-b3608be5f385">
-                <RegistryValue Root="HKMU" Action="write"
-                               Key="Software\Microsoft\Windows\CurrentVersion\Run"
-                               Name="TWAIN Server"
-                               Value="[INSTALLFOLDER]twain-server.exe"
-                               Type="string" />
-                <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
+            <Component Guid="9446f16a-a5fb-48e9-a0dc-0ebf7981d6db" Win64="yes">
+                <File Id="twain_server_watcher" Name="twain-server-watcher.exe" Source="src\twain-server-watcher-x64.exe" Checksum="yes" KeyPath="yes" Vital="yes" />
+                <ServiceInstall Id="ServiceInstaller"
+                                Type="ownProcess"
+                                Name="TWAIN Server"
+                                DisplayName="TWAIN Server"
+                                Description="An application that exposes TWAIN DSM via HTTP to localhost."
+                                Start="auto"
+                                Vital="yes"
+                                ErrorControl="normal" />
+                <ServiceControl Id="StartService" Start="install" Stop="both" Remove="uninstall" Name="TWAIN Server" Wait="yes" />
             </Component>
         </ComponentGroup>
     </Fragment>

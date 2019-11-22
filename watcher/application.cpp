@@ -25,6 +25,7 @@
 #include <loguru.hpp>
 #include <string>
 #include <thread>
+#include <PathCch.h>
 #include <Windows.h>
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -153,8 +154,14 @@ void WINAPI service_main(DWORD argc, LPTSTR* argv) {
         return;
     }
 
+    std::this_thread::sleep_for(20s);
+
+    wchar_t selfdir[MAX_PATH] = { 0 };
+    GetModuleFileNameW(NULL, selfdir, MAX_PATH);
+    PathCchRemoveFileSpec(selfdir, MAX_PATH);
+
     // Initialization
-    std::wstring command_line = get_current_working_dir() + L"\\twain-server.exe"s;
+    std::wstring command_line = selfdir + L"\\twain-server.exe"s;
     process_watcher.create_child(command_line);
     should_stop = false;
 
@@ -186,8 +193,6 @@ int main(int argc, char** argv) {
             return 0;
         }
     }
-
-    SetCurrentDirectoryA(argv[1]);
 
     SERVICE_TABLE_ENTRY serviceTable[] = {
         { SERVICE_NAME, service_main },
