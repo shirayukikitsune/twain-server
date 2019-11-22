@@ -219,7 +219,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
     }
 
     if (!currentDS) {
-        LOG_S(ERROR) << "Could not find DS with id " << reinterpret_cast<uintptr_t>(id);
+        LOG_S(ERROR) << "Could not find DS with id " << static_cast<uint64_t>(id);
         return false;
     }
 

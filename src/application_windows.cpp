@@ -45,7 +45,7 @@ void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listen
     LOG_S(INFO) << "Loading TWAIN DSM library";
     twain.loadDSM("TWAINDSM.dll");
 
-    /*LOG_S(INFO) << "Creating main window";
+    LOG_S(INFO) << "Creating main window";
     
     const wchar_t CLASS_NAME[] = L"Gliese Scanner";
     WNDCLASS wc = {};
@@ -62,7 +62,7 @@ void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listen
         return;
     }
 
-    ShowWindow(hwnd, SW_HIDE);*/
+    ShowWindow(hwnd, SW_HIDE);
 }
 
 void Application::run() {

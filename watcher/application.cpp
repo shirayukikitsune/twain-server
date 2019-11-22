@@ -20,38 +20,44 @@
 #define UNICODE
 #endif
 
-#include "application.hpp"
-#include "application_windows.hpp"
-#include "http/listener.hpp"
+#include "process.h"
 
 #include <loguru.hpp>
-#include <string.h>
+#include <string>
+#include <thread>
 #include <Windows.h>
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-using dasa::gliese::scanner::windows::Application;
-extern dasa::gliese::scanner::windows::Application *windows_application;
-extern dasa::gliese::scanner::Application *application;
 
 SERVICE_STATUS service_status;
 SERVICE_STATUS_HANDLE status_handle;
 HANDLE stop_event = nullptr;
 
-#define SERVICE_NAME TEXT("twain-server")
+#define SERVICE_NAME TEXT("twain-server-watcher")
+
+dasa::twain::watcher::process process_watcher;
+bool should_stop;
+
+std::wstring get_current_working_dir() {
+    TCHAR path[MAX_PATH];
+
+    if (!GetCurrentDirectory(MAX_PATH, path)) {
+        return std::wstring();
+    }
+
+    return std::wstring(path);
+}
 
 void install_service() {
     TCHAR path[MAX_PATH];
 
     if (!GetModuleFileName(nullptr, path, MAX_PATH)) {
-        ABORT_F("Failed to install service: %d", GetLastError());
         return;
     }
 
     auto manager = OpenSCManager(nullptr, nullptr, STANDARD_RIGHTS_REQUIRED | SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE);
 
     if (manager == nullptr) {
-        ABORT_F("Failed to open SC manager: %d", GetLastError());
         return;
     }
 
@@ -60,18 +66,18 @@ void install_service() {
         filepath = L'"' + filepath + L'"';
     }
 
+    filepath += L" " + get_current_working_dir();
+
     auto service = CreateService(manager, SERVICE_NAME, SERVICE_NAME,
         SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
         SERVICE_AUTO_START, SERVICE_ERROR_NORMAL,
         filepath.c_str(), nullptr, nullptr,
         nullptr, nullptr, nullptr);
     if (service == nullptr) {
-        ABORT_F("Failed to create service: %d", GetLastError());
         CloseServiceHandle(manager);
         return;
     }
 
-    LOG_F(INFO, "Service installed");
     CloseServiceHandle(service);
     CloseServiceHandle(manager);
 }
@@ -79,23 +85,16 @@ void install_service() {
 void remove_service() {
     auto manager = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
     if (!manager) {
-        ABORT_F("Failed to open SC manager: %d", GetLastError());
         return;
     }
 
     auto service = OpenService(manager, SERVICE_NAME, DELETE);
     if (!service) {
-        ABORT_F("Failed to open service: %d", GetLastError());
         CloseServiceHandle(manager);
         return;
     }
 
-    if (!DeleteService(service)) {
-        LOG_F(ERROR, "Failed to delete service: %d", GetLastError());
-    }
-    else {
-        LOG_F(INFO, "Service deleted");
-    }
+    DeleteService(service);
 
     CloseServiceHandle(service);
     CloseServiceHandle(manager);
@@ -123,7 +122,8 @@ void WINAPI control_handler(DWORD control_code) {
     case SERVICE_CONTROL_STOP:
         report_status(SERVICE_STOP_PENDING, NO_ERROR, 0);
 
-        application->stop();
+        should_stop = true;
+        process_watcher.stop();
         report_status(service_status.dwCurrentState, NO_ERROR, 0);
         break;
 
@@ -133,10 +133,12 @@ void WINAPI control_handler(DWORD control_code) {
 }
 
 void WINAPI service_main(DWORD argc, LPTSTR* argv) {
+    using namespace std::literals;
+
     status_handle = RegisterServiceCtrlHandler(SERVICE_NAME, control_handler);
 
     if (!status_handle) {
-        ABORT_F("Failed to register service control handler: %d", GetLastError());
+        //ABORT_F("Failed to register service control handler: %d", GetLastError());
         return;
     }
 
@@ -151,43 +153,28 @@ void WINAPI service_main(DWORD argc, LPTSTR* argv) {
         return;
     }
 
-    windows_application = new Application;
-    application = windows_application;
-    auto listener = std::make_shared<dasa::gliese::scanner::http::Listener>(application->getIoContext());
-
-    listener->listen("127.0.0.1", 43456);
-
-    LOG_F(INFO, "Opening HTTP listener on 127.0.0.1:43456");
-
-    application->initialize(listener);
-
-    LOG_F(INFO, "Application initialized");
-
-    LOG_S(INFO) << "Connecting to TWAIN";
-    application->getTwain().fillIdentity();
-    application->getTwain().openDSM();
-
-    LOG_S(INFO) << "Listing TWAIN devices";
-    auto devices = application->getTwain().listSources();
-    for (auto& device : devices) {
-        LOG_S(INFO) << device;
-    }
-
-    auto device = application->getTwain().getDefaultDataSource();
-    LOG_S(INFO) << "Default device: " << device;
+    // Initialization
+    std::wstring command_line = get_current_working_dir() + L"\\twain-server.exe"s;
+    process_watcher.create_child(command_line);
+    should_stop = false;
 
     report_status(SERVICE_RUNNING, NO_ERROR, 0);
 
-    application->run();
+    // Running
+    while (!should_stop) {
+        if (!process_watcher.is_alive()) {
+            process_watcher.reset();
+            process_watcher.create_child(command_line);
+        }
 
-    LOG_F(INFO, "Closing TWAIN DSM");
-    application->getTwain().shutdown();
+        process_watcher.join();
+    }
 
     report_status(SERVICE_STOPPED, NO_ERROR, 0);
 }
 
 int main(int argc, char** argv) {
-    loguru::init(argc, argv, "-v");
+    loguru::init(argc, argv);
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-Install") == 0) {
@@ -199,6 +186,8 @@ int main(int argc, char** argv) {
             return 0;
         }
     }
+
+    SetCurrentDirectoryA(argv[1]);
 
     SERVICE_TABLE_ENTRY serviceTable[] = {
         { SERVICE_NAME, service_main },

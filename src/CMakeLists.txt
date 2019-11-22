@@ -1,8 +1,6 @@
 if (MSVC OR MSYS OR MINGW)
   if (APPLICATION_TYPE STREQUAL "Window")
     add_executable(twain-server WIN32 application_windows_native.cpp)
-  elseif (APPLICATION_TYPE STREQUAL "Service")
-    add_executable(twain-server application_windows_service.cpp)
   else ()
     add_executable(twain-server application_windows_console.cpp)
   endif()
