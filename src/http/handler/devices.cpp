@@ -18,12 +18,16 @@
 
 #include "devices.hpp"
 #include "../../application.hpp"
-#include <cstdlib>
 
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPIHandler, devicesDPIHandlerInjectable);
-KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPICORSHandler, devicesDPICorsHandlerInjectable);
+#include <cstdlib>
+#include <boost/asio/yield.hpp>
+
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesAsyncHandler, devicesAsyncHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesAsyncCORSHandler, devicesAsyncCorsHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPIHandler, devicesDPIHandlerInjectable)
+KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesDPICORSHandler, devicesDPICorsHandlerInjectable)
 
 extern dasa::gliese::scanner::Application *application;
 
@@ -31,9 +35,59 @@ using namespace dasa::gliese::scanner::http::handler;
 using nlohmann::json;
 namespace bh = boost::beast::http;
 
+void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<dasa::gliese::scanner::twain::Device> devices) {
+    reenter(co) {
+        for (;;) {
+            yield application->getTwain().async_list_sources(std::bind(&DevicesAsyncHandler::handle, this, request, send, co, std::placeholders::_1, std::placeholders::_2));
+
+            break;
+        }
+
+        if (ec) {
+            send(makeErrorResponse(bh::status::service_unavailable, "TWAIN DSM connection is unavailable", request));
+            return;
+        }
+
+        json response_body;
+        auto defaultDevice = application->getTwain().getDefaultDataSource();
+        size_t i = 0;
+        for (auto& device : devices) {
+            auto deviceJson = device.toJson();
+            if (device == defaultDevice.Id) {
+                deviceJson["default"] = true;
+            }
+            response_body[i++] = deviceJson;
+        }
+
+        bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
+        res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(bh::field::content_type, "application/json");
+
+        auto origin = request[bh::field::origin];
+        if (!origin.empty()) {
+            res.set(bh::field::access_control_allow_origin, origin);
+        }
+        res.keep_alive(request.keep_alive());
+        boost::beast::ostream(res.body()) << response_body;
+        res.prepare_payload();
+        send(res);
+    }
+
+}
+
+void DevicesAsyncHandler::operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) {
+    boost::asio::coroutine co;
+    handle(request, send, co, {}, {});
+}
+
 bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string_body>&& request) {
 	json response;
-    auto devices = application->getTwain().listSources();
+	std::error_code ec;
+    auto devices = application->getTwain().listSources(ec);
+    if (ec) {
+        return makeErrorResponse(bh::status::service_unavailable, "TWAIN DSM connection is unavailable", request);
+    }
+
     auto defaultDevice = application->getTwain().getDefaultDataSource();
     size_t i = 0;
     for (auto & device : devices) {
@@ -58,22 +112,6 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
 	return res;
 }
 
-bh::response<bh::dynamic_body> DevicesCORSHandler::operator()(bh::request<bh::string_body>&& request) {
-    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
-    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        res.set(bh::field::access_control_allow_origin, origin);
-        res.set(bh::field::access_control_allow_methods, "GET");
-        res.set(bh::field::access_control_allow_headers, "Server, Content-Type");
-    }
-
-    res.keep_alive(request.keep_alive());
-    res.prepare_payload();
-    return res;
-}
-
 bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
 	json response;
 	auto device = (twain::Device::TW_ID)strtoll(((std::string)request["x-device"]).c_str(), nullptr, 0);
@@ -82,7 +120,7 @@ bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::str
 	}
 	TW_CAPABILITY cap{ICAP_XRESOLUTION, 0, nullptr};
 	if (!application->getTwain().loadDataSource(device)) {
-        return makeErrorResponse(bh::status::not_found, "device not found", request);
+        return makeErrorResponse(bh::status::service_unavailable, "device temporarly unavailable", request);
 	}
     application->getTwain().getCapability(cap);
 
@@ -109,20 +147,4 @@ bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::str
 	boost::beast::ostream(res.body()) << response;
 	res.prepare_payload();
 	return res;
-}
-
-bh::response<bh::dynamic_body> DevicesDPICORSHandler::operator()(bh::request<bh::string_body>&& request) {
-    bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
-    res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
-
-    auto origin = request[bh::field::origin];
-    if (!origin.empty()) {
-        res.set(bh::field::access_control_allow_origin, origin);
-        res.set(bh::field::access_control_allow_methods, "GET");
-        res.set(bh::field::access_control_allow_headers, "Server, Content-Type, X-Device");
-    }
-
-    res.keep_alive(request.keep_alive());
-    res.prepare_payload();
-    return res;
 }

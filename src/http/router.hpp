@@ -32,9 +32,17 @@ namespace dasa::gliese::scanner::http {
 			handlers[handler->route()] = std::move(handler);
 		}
 
-		boost::beast::http::response<boost::beast::http::dynamic_body> handle_request(boost::beast::http::request<boost::beast::http::string_body>&& request);
+        template <typename send_fn>
+		void handle_request(boost::beast::http::request<boost::beast::http::string_body>&& request, send_fn send) {
+            auto handler = handlers.find(request.target());
+            if (handler == handlers.end()) {
+                return send(makeNotFoundResponse(request));
+            }
 
-	private:
+            (*handler->second)(std::move(request), send);
+        }
+
+    private:
 		static boost::beast::http::response<boost::beast::http::dynamic_body> makeNotFoundResponse(const boost::beast::http::request<boost::beast::http::string_body>& request);
 
 		std::map<boost::beast::string_view, std::shared_ptr<handler::RouteHandler>> handlers;

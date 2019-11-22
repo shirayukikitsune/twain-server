@@ -18,7 +18,10 @@
 
 #pragma once
 
+#include "cors.hpp"
 #include "handler.hpp"
+#include "../../twain/device.hpp"
+#include <boost/asio/coroutine.hpp>
 
 namespace dasa::gliese::scanner::http::handler {
     class DevicesHandler : public kitsune::ioc::Service<DevicesHandler, GetMapping> {
@@ -30,13 +33,28 @@ namespace dasa::gliese::scanner::http::handler {
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
 
-    class DevicesCORSHandler : public kitsune::ioc::Service<DevicesCORSHandler, OptionsMapping> {
+    class DevicesCORSHandler : public CORSMapping<DevicesCORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/devices";
         }
+    };
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    class DevicesAsyncHandler : public kitsune::ioc::Service<DevicesAsyncHandler, GetMapping> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices-async";
+        }
+
+        void handle(const boost::beast::http::request<boost::beast::http::string_body>& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send, boost::asio::coroutine co, std::error_code ec, std::list<twain::Device> devices);
+        void operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) override;
+    };
+
+    class DevicesAsyncCORSHandler : public CORSMapping<DevicesAsyncCORSHandler> {
+    public:
+        [[nodiscard]] boost::beast::string_view route() const override {
+            return "/devices-async";
+        }
     };
 
     class DevicesDPIHandler : public kitsune::ioc::Service<DevicesHandler, GetMapping> {
@@ -48,13 +66,16 @@ namespace dasa::gliese::scanner::http::handler {
         boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
     };
 
-    class DevicesDPICORSHandler : public kitsune::ioc::Service<DevicesCORSHandler, OptionsMapping> {
+    class DevicesDPICORSHandler : public CORSMapping<DevicesDPICORSHandler> {
     public:
         [[nodiscard]] boost::beast::string_view route() const override {
             return "/devices/dpi";
         }
 
-        boost::beast::http::response<boost::beast::http::dynamic_body> operator()(boost::beast::http::request<boost::beast::http::string_body>&& request) override;
+    protected:
+        [[nodiscard]] boost::beast::string_view headers() final {
+            return "Server, Content-Type, X-Device";
+        }
     };
 }
 

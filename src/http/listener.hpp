@@ -46,6 +46,10 @@ namespace dasa::gliese::scanner::http {
 
         Router* getRouterForVerb(boost::beast::http::verb verb);
 
+        bool is_running() {
+            return shouldRun;
+        }
+
     private:
         void loop(boost::beast::error_code ec = {});
 

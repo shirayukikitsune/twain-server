@@ -28,18 +28,16 @@ namespace dasa::gliese::scanner::http {
 
     class Session : public boost::asio::coroutine, public std::enable_shared_from_this<Session> {
         struct send {
-            Session &session;
+            std::shared_ptr<Session> session;
             std::shared_ptr<void> response;
-
-            explicit send(Session &session) : session(session) {}
 
             template <bool isRequest, class Body, class Fields>
             void operator()(boost::beast::http::message<isRequest, Body, Fields>&& message) const {
                 auto messagePtr = std::make_shared<boost::beast::http::message<isRequest, Body, Fields>>(std::move(message));
 
-                session.response = messagePtr;
+                session->response = messagePtr;
 
-                boost::beast::http::async_write(session.stream, *messagePtr, boost::beast::bind_front_handler(&Session::loop, session.shared_from_this(), messagePtr->need_eof()));
+                boost::beast::http::async_write(session->stream, *messagePtr, boost::beast::bind_front_handler(&Session::loop, session->shared_from_this(), messagePtr->need_eof()));
             }
         };
 

@@ -35,7 +35,7 @@ bool Device::isOnline() {
         twain->openDSM();
     }
 
-    if (twain->getState() != 3 || (twain->getDataSouce() != nullptr && twain->getDataSouce()->Id != identity.Id)) {
+    if (twain->getState() != 3 || (twain->getDataSource() != nullptr && twain->getDataSource()->Id != identity.Id)) {
         return false;
     }
 

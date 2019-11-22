@@ -27,8 +27,7 @@ namespace bh = boost::beast::http;
 
 Session::Session(boost::asio::ip::tcp::socket&& socket, std::shared_ptr<Listener> listener)
     : stream(std::move(socket))
-    , listener(std::move(listener))
-    , sendFunction(*this) {}
+    , listener(std::move(listener)) {}
 
 #include <boost/asio/yield.hpp>
 
@@ -58,7 +57,8 @@ void Session::loop(bool close, boost::beast::error_code ec, std::size_t bytesTra
                 yield sendFunction(makeBadRequestResponse("invalid HTTP method"));
             }
             else {
-                yield sendFunction(listener->getRouterForVerb(request.method())->handle_request(std::move(request)));
+                sendFunction.session = shared_from_this();
+                yield listener->getRouterForVerb(request.method())->handle_request(std::move(request), sendFunction);
             }
 
             response = nullptr;
