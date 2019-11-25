@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:u="http://schemas.microsoft.com/wix/UtilExtension">
     <Product Id="*" Codepage="65001" Name="TWAIN Server" Language="1033" Version="1.0.0.0" Manufacturer="Diagnósticos da América S.A." UpgradeCode="2b6fca56-39b2-4c74-a87c-a69a3397538e">
         <Package InstallerVersion="301" Platform="x64" Compressed="yes" InstallScope="perMachine" />
 
@@ -11,7 +11,7 @@
         <Feature Id="ProductFeature" Title="TWAIN Server" Level="1">
             <ComponentGroupRef Id="ProductComponents" />
         </Feature>
-        <Feature Id="VCRedist" Title="Visual C++ 2017 x64 Runtime" Level="1">
+        <Feature Id="VCRedist" Title="Visual C++ Runtime" Level="1">
             <MergeRef Id="VCRedist"/>
         </Feature>
         <Feature Id="TWAINDSM" Title="TWAIN DSM" Level="1">
@@ -45,7 +45,12 @@
                                 Description="An application that exposes TWAIN DSM via HTTP to localhost."
                                 Start="auto"
                                 Vital="yes"
-                                ErrorControl="normal" />
+                                ErrorControl="normal">
+                    <u:ServiceConfig FirstFailureActionType="restart"
+                                     SecondFailureActionType="restart"
+                                     ThirdFailureActionType="restart"
+                                     RestartServiceDelayInSeconds="3" /> 
+                </ServiceInstall>
                 <ServiceControl Id="StartService" Start="install" Stop="both" Remove="uninstall" Name="TWAIN Server" Wait="yes" />
             </Component>
         </ComponentGroup>
