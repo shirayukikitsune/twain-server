@@ -21,6 +21,7 @@
 
 #include <cstdlib>
 #include <boost/asio/yield.hpp>
+#include <loguru.hpp>
 
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesHandler, devicesHandlerInjectable)
 KITSUNE_INJECTABLE(dasa::gliese::scanner::http::handler::RouteHandler, dasa::gliese::scanner::http::handler::DevicesCORSHandler, devicesCorsHandlerInjectable)
@@ -77,10 +78,12 @@ void DevicesAsyncHandler::handle(const bh::request<bh::string_body>& request, st
 
 void DevicesAsyncHandler::operator()(boost::beast::http::request<boost::beast::http::string_body>&& request, std::function<void(boost::beast::http::response<boost::beast::http::dynamic_body>)> send) {
     boost::asio::coroutine co;
+    LOG_S(INFO) << "Requesting async device list";
     handle(request, send, co, {}, {});
 }
 
 bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "GET /devices");
 	json response;
 	std::error_code ec;
     auto devices = application->getTwain().listSources(ec);
@@ -113,27 +116,16 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
 }
 
 bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "GET /devices/dpi");
 	json response;
 	auto device = (twain::Device::TW_ID)strtoll(((std::string)request["x-device"]).c_str(), nullptr, 0);
 	if (!device) {
         return makeErrorResponse(bh::status::not_found, "device not found", request);
 	}
-	TW_CAPABILITY cap{ICAP_XRESOLUTION, 0, nullptr};
-	if (!application->getTwain().loadDataSource(device)) {
-        return makeErrorResponse(bh::status::service_unavailable, "device temporarly unavailable", request);
-	}
-    application->getTwain().getCapability(cap);
 
-    if (cap.ConType == TWON_ENUMERATION) {
-        auto con = ((TW_ENUMERATION*)cap.hContainer);
-        for (unsigned i = 0; i < con->NumItems; ++i) {
-            auto res = reinterpret_cast<pTW_FIX32>(&con->ItemList)[i];
-            response[i] = res.Whole;
-        }
-    }
-
-    application->getTwain().dsm().free(cap.hContainer);
-    application->getTwain().closeDS();
+    auto dpis = application->getTwain().getDeviceDPIs(device);
+    response["x"] = std::get<0>(dpis);
+    response["y"] = std::get<1>(dpis);
 
     bh::response<bh::dynamic_body> res{ bh::status::ok, request.version() };
 	res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);

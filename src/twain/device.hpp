@@ -22,8 +22,10 @@
 #include <Windows.h>
 #endif
 
+#include <list>
 #include <nlohmann/json.hpp>
 #include <ostream>
+#include <tuple>
 #include "../external/twain.h"
 
 namespace dasa::gliese::scanner {
@@ -56,6 +58,12 @@ namespace dasa::gliese::scanner::twain {
         bool operator==(TW_ID other);
         bool operator==(const TW_IDENTITY &other);
 
+        pTW_IDENTITY getIdentity() {
+            return &identity;
+        }
+
+        std::tuple<std::list<uint32_t>, std::list<uint32_t>> getResolutions();
+
         bool isOnline();
 
         nlohmann::json toJson();
@@ -63,6 +71,8 @@ namespace dasa::gliese::scanner::twain {
     private:
         TW_IDENTITY identity;
         Twain *twain;
+
+        bool getResolution(TW_UINT16 cap, std::list<uint32_t> &resolutions);
     };
 }
 
