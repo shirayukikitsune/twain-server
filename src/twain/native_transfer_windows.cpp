@@ -17,6 +17,7 @@
 */
 
 #include "native_transfer.hpp"
+#include "error_code.hpp"
 
 #include <loguru.hpp>
 
@@ -45,11 +46,11 @@ bool NativeTransfer::transferOne(std::ostream& os) {
 
 	if (rc == TWRC_CANCEL) {
 		LOG_S(WARNING) << "Cancelled transfer while trying to get data";
-		return false;
+        throw twain_error(error_code::cancelled);
 	}
 	if (rc == TWRC_FAILURE) {
 		LOG_S(ERROR) << "Error while transfering data from DS";
-		return false;
+        throw twain_error(error_code::generic_failure);
 	}
 	if (rc == TWRC_XFERDONE) {
 		auto pDIB = (PBITMAPINFOHEADER)twain->dsm().lock(reinterpret_cast<TW_HANDLE>(hImg));

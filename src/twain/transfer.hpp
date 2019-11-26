@@ -44,6 +44,7 @@ namespace dasa::gliese::scanner::twain {
 		virtual TW_IMAGEINFO prepare() = 0;
         void transferAll(std::ostream& outputStream);
 		virtual bool transferOne(std::ostream& outputStream) = 0;
+        bool transferOne(std::ostream& outputStream, std::error_code& ec);
 		virtual void end() {}
 
 		void checkPending();

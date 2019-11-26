@@ -25,7 +25,7 @@
 using namespace dasa::gliese::scanner::twain;
 
 Transfer::~Transfer() {
-    clearPending();
+    // clearPending();
 }
 
 void Transfer::transferAll(std::ostream& outputStream) {
@@ -50,6 +50,16 @@ void Transfer::transferAll(std::ostream& outputStream) {
 	clearPending();
 }
 
+bool Transfer::transferOne(std::ostream& outputStream, std::error_code& ec)
+{
+    try {
+        return transferOne(outputStream);
+    } catch (std::system_error & e) {
+        ec = e.code();
+        return false;
+    }
+}
+
 
 void Transfer::checkPending() {
 	LOG_S(INFO) << "Checking for more images";
@@ -71,15 +81,18 @@ void Transfer::checkPending() {
 }
 
 void Transfer::clearPending() {
+
     TW_PENDINGXFERS pendxfers;
-	if (pendingTransfers) {
-		memset(&pendxfers, 0, sizeof(pendxfers));
+	memset(&pendxfers, 0, sizeof(pendxfers));
 
-        (*twain)(DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, reinterpret_cast<TW_MEMREF>(&pendxfers));
-	}
-    memset(&pendxfers, 0, sizeof(pendxfers));
+    (*twain)(DG_CONTROL, DAT_PENDINGXFERS, MSG_ENDXFER, reinterpret_cast<TW_MEMREF>(&pendxfers));
 
-    (*twain)(DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, reinterpret_cast<TW_MEMREF>(&pendxfers));
+    if (pendxfers.Count != 0) {
+        memset(&pendxfers, 0, sizeof(pendxfers));
+        (*twain)(DG_CONTROL, DAT_PENDINGXFERS, MSG_RESET, reinterpret_cast<TW_MEMREF>(&pendxfers));
+    }
 
-	twain->setState(5);
+    if (twain->getState() > 5) {
+        twain->setState(5);
+    }
 }

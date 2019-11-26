@@ -80,6 +80,29 @@ typedef struct tagBITMAPFILEHEADER {
 } __attribute__((packed)) BITMAPFILEHEADER;
 #endif
 
+#define BYTES_PERLINE_ALIGN4(width, bpp) (((((int)(width)*(bpp))+31)/32)*4)
+
+BITMAPINFOHEADER make_info_header(const TW_IMAGEINFO& image_info) {
+    BITMAPINFOHEADER info_header{ 0 };
+
+    auto bpp = image_info.BitsPerPixel;
+    auto color_count = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
+
+    info_header.biSize = sizeof(BITMAPINFOHEADER);
+    info_header.biWidth = image_info.ImageWidth;
+    info_header.biHeight = image_info.ImageLength;
+    info_header.biPlanes = 1;
+    info_header.biBitCount = image_info.BitsPerPixel;
+    info_header.biCompression = 0;
+    info_header.biXPelsPerMeter = lround(image_info.XResolution.Whole * 39.3700787 + 0.5);
+    info_header.biYPelsPerMeter = lround(image_info.YResolution.Whole * 39.3700787 + 0.5);
+    info_header.biClrUsed = color_count;
+    info_header.biClrImportant = color_count;
+    info_header.biSizeImage = BYTES_PERLINE_ALIGN4(info_header.biWidth, info_header.biBitCount) * info_header.biHeight;
+
+    return info_header;
+}
+
 bool MemoryTransfer::transferOne(std::ostream& os) {
 	TW_IMAGEMEMXFER memXferBuffer;
 	TW_UINT16 rc;
@@ -90,18 +113,7 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 	auto bpp = imageInfo.BitsPerPixel;
 	auto colorCount = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
 	unsigned paletteSize = sizeof(RGBQUAD) * colorCount;
-    BITMAPINFOHEADER infoHeader{};
-    infoHeader.biSize = sizeof(BITMAPINFOHEADER);
-    infoHeader.biWidth = imageInfo.ImageWidth;
-    infoHeader.biHeight = imageInfo.ImageLength;
-    infoHeader.biPlanes = 1;
-    infoHeader.biBitCount = bpp;
-    infoHeader.biCompression = 0;
-    infoHeader.biXPelsPerMeter = lround(imageInfo.XResolution.Whole * 39.3700787 + 0.5);
-    infoHeader.biYPelsPerMeter = lround(imageInfo.YResolution.Whole * 39.3700787 + 0.5);
-    infoHeader.biClrUsed = colorCount;
-    infoHeader.biClrImportant = colorCount;
-    infoHeader.biSizeImage = ((((infoHeader.biWidth * infoHeader.biBitCount) + 31U) & ~31U) / 8) * infoHeader.biHeight;
+    BITMAPINFOHEADER infoHeader = make_info_header(imageInfo);
 
     BITMAPFILEHEADER fileHeader{
         0x4d42,
@@ -139,7 +151,7 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 		memcpy(&memXferBuffer, &memXferTemplate, sizeof(TW_IMAGEMEMXFER));
 		memset(memXferBuffer.Memory.TheMem, 0, memXferBuffer.Memory.Length);
 
-		rc = (*twain)(twain->getIdentity(), twain->getDataSource(), DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
+		rc = (*twain)(DG_IMAGE, DAT_IMAGEMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&memXferBuffer));
 
 		if (rc == TWRC_CANCEL) {
 			LOG_S(WARNING) << "Cancelled transfer while trying to get data";
