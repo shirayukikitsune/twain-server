@@ -124,7 +124,7 @@ bool DSM::open(pTW_IDENTITY identity, TW_MEMREF parent) {
     return true;
 }
 
-void DSM::close(pTW_IDENTITY identity) {
+void DSM::close(pTW_IDENTITY identity, TW_MEMREF parent) {
     if (state() == State::Unloaded) {
         LOG_F(ERROR, "Trying to close DSM connection when library is not loaded");
         return;
@@ -134,7 +134,7 @@ void DSM::close(pTW_IDENTITY identity) {
         return;
     }
 
-    if ((*this)(identity, nullptr, DG_CONTROL, DAT_PARENT, MSG_CLOSEDSM, nullptr) != TWRC_SUCCESS) {
+    if ((*this)(identity, nullptr, DG_CONTROL, DAT_PARENT, MSG_CLOSEDSM, parent) != TWRC_SUCCESS) {
         LOG_F(ERROR, "Failed to close the DSM connection");
         return;
     }

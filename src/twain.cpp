@@ -71,7 +71,7 @@ void Twain::loadDSM(const char *path) {
         return;
     }
 
-    state = 2;
+    setState(2);
 
     twainListen();
 }
@@ -95,7 +95,7 @@ void Twain::unloadDSM() {
     }
 
     DSM.unload();
-    state = 1;
+    setState(1);
 }
 
 void Twain::openDSM() {
@@ -114,7 +114,7 @@ void Twain::openDSM() {
         return;
     }
 
-    state = 3;
+    setState(3);
 }
 
 void Twain::closeDSM() {
@@ -123,8 +123,15 @@ void Twain::closeDSM() {
         return;
     }
 
-    DSM.close(getIdentity());
-    state = 2;
+    auto parent = application->getParentWindow();
+    DSM.close(getIdentity(), reinterpret_cast<TW_MEMREF>(&parent));
+    setState(2);
+}
+
+void Twain::setState(int newState)
+{
+    LOG_F(INFO, "Changing state from %d to %d", state, newState);
+    state = newState;
 }
 
 std::list<dasa::gliese::scanner::twain::Device> Twain::listSources() {
@@ -189,13 +196,13 @@ TW_STATUSUTF8 Twain::getStatus() {
         return twStatus;
     }
 
-    DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
+    (*this)(DG_CONTROL, DAT_STATUSUTF8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twStatus));
     return twStatus;
 }
 
 static TW_UINT16 DSMCallback(pTW_IDENTITY origin, pTW_IDENTITY /*dest*/, TW_UINT32 /*dg*/, TW_UINT16 /*dat*/, TW_UINT16 message, TW_MEMREF /*data*/) {
     auto& twain = application->getTwain();
-    if (origin == nullptr || origin->Id != twain.getDataSource()->Id) {
+    if (origin == nullptr || origin->Id != (dasa::gliese::scanner::twain::Device::TW_ID)(*twain.getDataSource())) {
         return TWRC_FAILURE;
     }
 
@@ -225,15 +232,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
         return false;
     }
 
-    currentDS.reset(nullptr);
-    auto sources = listSources();
-    for (auto& source : sources) {
-        if (source == id) {
-            currentDS = std::make_unique<TW_IDENTITY>();
-            memcpy(currentDS.get(), &source, sizeof(TW_IDENTITY));
-            break;
-        }
-    }
+    currentDS = make_device(id);
 
     if (!currentDS) {
 #ifdef __APPLE__
@@ -244,8 +243,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device::TW_ID id) {
         return false;
     }
 
-    auto device = twain::Device(this, *currentDS);
-    return loadDataSource(device);
+    return loadDataSource(*currentDS);
 }
 
 bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
@@ -258,9 +256,9 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
         return false;
     }
 
-    currentDS = std::make_unique<TW_IDENTITY>();
-    auto deviceIdentity = (TW_IDENTITY)device;
-    memcpy(currentDS.get(), &deviceIdentity, sizeof(TW_IDENTITY));
+    if (!currentDS || currentDS->getIdentity()->Id != device.getIdentity()->Id) {
+        currentDS = std::make_unique<twain::Device>(this, *device.getIdentity());
+    }
 
     TW_CALLBACK callback;
     memset(&callback, 0, sizeof(TW_CALLBACK));
@@ -272,7 +270,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
 #endif
     useCallbacks = false;
 
-    auto resultCode = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS.get()));
+    auto resultCode = DSM(getIdentity(), nullptr, DG_CONTROL, DAT_IDENTITY, MSG_OPENDS, reinterpret_cast<TW_MEMREF>(currentDS->getIdentity()));
 
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to open DataSource";
@@ -280,11 +278,11 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
         return false;
     }
 
-    state = 4;
+    setState(4);
 
 #if defined(WIN32) || defined(WIN64) || defined (_WINDOWS)
-    if ((getIdentity()->SupportedGroups & DF_DSM2) && (currentDS->SupportedGroups & DF_DSM2)) {
-        resultCode = DSM(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
+    if ((getIdentity()->SupportedGroups & DF_DSM2) && (currentDS->getIdentity()->SupportedGroups & DF_DSM2)) {
+        resultCode = (*this)(DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, &callback);
         if (resultCode != TWRC_SUCCESS) {
             LOG_S(ERROR) << "Failed to register callback: " << resultCode;
             return false;
@@ -295,7 +293,7 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
         LOG_S(WARNING) << "MSG_REGISTER_CALLBACK not supported";
     }
 #else
-    resultCode = DSM(getIdentity(), currentDS.get(), DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, reinterpret_cast<TW_MEMREF>(&callback));
+    resultCode = (*this)(DG_CONTROL, DAT_CALLBACK, MSG_REGISTER_CALLBACK, reinterpret_cast<TW_MEMREF>(&callback));
     if (resultCode != TWRC_SUCCESS) {
         LOG_S(ERROR) << "Failed to register callback: " << resultCode;
         return false;
@@ -308,6 +306,10 @@ bool Twain::loadDataSource(dasa::gliese::scanner::twain::Device &device) {
 }
 
 void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
+    if (getState() == 2) {
+        openDSM();
+    }
+
     boost::asio::post(application->getTwainIoContext(), [this, &handle, showUI] {
         if (getState() < 4) {
             LOG_S(ERROR) << "Trying to enable DS but it was not opened";
@@ -320,7 +322,7 @@ void Twain::enableDataSource(TW_HANDLE handle, bool showUI) {
         ui.ModalUI = 1;
         ui.hParent = handle;
 
-        auto resultCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+        auto resultCode = (*this)(DG_CONTROL, DAT_USERINTERFACE, MSG_ENABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
         if (resultCode != TWRC_SUCCESS && resultCode != TWRC_CHECKSTATUS) {
             LOG_S(ERROR) << "Failed to enable DS: " << resultCode;
             return;
@@ -345,9 +347,9 @@ bool Twain::closeDS() {
         LOG_S(ERROR) << "Failed to close DS: RC " << resultCode << "; CC " << status.Status.ConditionCode;
     }
 
-    state = 3;
+    setState(3);
     LOG_S(INFO) << "DS closed";
-    currentDS.release();
+    currentDS = nullptr;
 
     return true;
 }
@@ -358,7 +360,7 @@ void Twain::disableDS() {
         return;
     }
 
-    auto resultCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
+    auto resultCode = (*this)(DG_CONTROL, DAT_USERINTERFACE, MSG_DISABLEDS, reinterpret_cast<TW_MEMREF>(&ui));
 
     if (resultCode != TWRC_SUCCESS) {
         auto status = getStatus();
@@ -417,7 +419,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
             goto cleanup;
     }
 
-    returnCode = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+    returnCode = (*this)(DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
         LOG_S(ERROR) << "Failed to set capability";
     }
@@ -456,7 +458,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue) {
 	pVal->Item = *_pValue;
 
 	// capability structure is set, make the call to the source now
-	twrc = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+	twrc = (*this)(DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
 	if (TWRC_FAILURE == twrc)
 	{
 		LOG_S(ERROR) << "Could not set capability";
@@ -468,10 +470,11 @@ TW_UINT16 Twain::setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue) {
 	return twrc;
 }
 
-std::shared_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std::string &outputMime) {
+std::weak_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std::string &outputMime) {
+    auto ptr = std::weak_ptr<twain::Transfer>();
     if (state != 6) {
         LOG_S(ERROR) << "Cannot start scanning unless if scanner is ready";
-        return nullptr;
+        return ptr;
     }
 
     TW_CAPABILITY xferCap = {ICAP_XFERMECH, 0, nullptr };
@@ -479,25 +482,28 @@ std::shared_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const s
     TW_UINT32 mech;
 
     if (rc == TWRC_FAILURE) {
-        return nullptr;
+        return ptr;
     }
     if (!getCurrent(&xferCap, mech)) {
         LOG_S(ERROR) << "Failed to get current ICAP_XFERMECH value";
-        return nullptr;
+        return ptr;
     }
 
     switch (mech)
     {
     case TWSX_MEMORY:
         activeTransfer = std::make_shared<dasa::gliese::scanner::twain::MemoryTransfer>(this, outputMime);
+        break;
     case TWSX_NATIVE:
         activeTransfer = std::make_shared<dasa::gliese::scanner::twain::NativeTransfer>(this, outputMime);
+        break;
     default:
         LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
         break;
     }
 
-	return activeTransfer;
+    ptr = activeTransfer;
+	return ptr;
 }
 
 TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
@@ -523,9 +529,21 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
     _cap.ConType = TWON_DONTCARE16;
 
     // capability structure is set, make the call to the source now
-    TW_UINT16 twrc = DSM(getIdentity(), getDataSource(), DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
+    TW_UINT16 twrc = (*this)(DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
 
     return twrc;
+}
+
+std::unique_ptr<dasa::gliese::scanner::twain::Device> Twain::make_device(dasa::gliese::scanner::twain::Device::TW_ID id)
+{
+    auto sources = listSources();
+    for (auto& source : sources) {
+        if (source == id) {
+            return std::make_unique<twain::Device>(this, *source.getIdentity());
+        }
+    }
+
+    return nullptr;
 }
 
 bool Twain::getCurrent(TW_CAPABILITY *pCap, TW_UINT32& val)
@@ -600,6 +618,7 @@ void Twain::shutdown() noexcept {
 
     if (getState() >= 6) {
         LOG_F(INFO, "Canceling transfer");
+        activeTransfer->clearPending();
         this->endTransfer();
     }
     if (getState() == 5) {
@@ -630,6 +649,27 @@ void Twain::reset() {
 
     loadDSM(nullptr);
     openDSM();
+}
+
+std::tuple<std::list<uint32_t>, std::list<uint32_t>> dasa::gliese::scanner::Twain::getDeviceDPIs(twain::Device::TW_ID device)
+{
+    if (state < 3 || (state > 3 && device != currentDS->getIdentity()->Id)) {
+        LOG_S(ERROR) << "Invalid DSM state";
+        return std::make_tuple(std::list<uint32_t>(), std::list<uint32_t>());
+    }
+
+    if (currentDS && currentDS->getIdentity()->Id == device) {
+        return currentDS->getResolutions();
+    }
+
+    auto d = make_device(device);
+    auto response = std::make_tuple(std::list<uint32_t>(), std::list<uint32_t>());
+
+    if (d) {
+        response = d->getResolutions();
+    }
+
+    return response;
 }
 
 void Twain::endTransfer() {

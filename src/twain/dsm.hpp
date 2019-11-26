@@ -51,7 +51,7 @@ namespace dasa::gliese::scanner::twain {
         void unload();
 
         [[nodiscard]] bool open(pTW_IDENTITY identity, TW_MEMREF parent);
-        void close(pTW_IDENTITY identity);
+        void close(pTW_IDENTITY identity, TW_MEMREF parent);
 
         TW_HANDLE alloc(TW_UINT32 size);
         void free(TW_HANDLE memory);

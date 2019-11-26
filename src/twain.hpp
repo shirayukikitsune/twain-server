@@ -94,7 +94,7 @@ namespace dasa::gliese::scanner {
         /**
          * Sets the new state of the TWAIN FSM
          */
-        void setState(int newState) { state = newState; }
+        void setState(int newState);
 
         bool isUsingCallbacks() {
             return useCallbacks;
@@ -170,7 +170,7 @@ namespace dasa::gliese::scanner {
         /**
          * Return the current loaded DS
          */
-        pTW_IDENTITY getDataSource() { return currentDS.get(); }
+        dasa::gliese::scanner::twain::Device* getDataSource() { return currentDS.get(); }
 
         /**
          * Closes the connection to the current DS
@@ -186,7 +186,7 @@ namespace dasa::gliese::scanner {
 		TW_UINT16 setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue);
         TW_INT16 getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg = MSG_GET);
 
-        std::shared_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
+        std::weak_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
 
         /**
          * Reset the TWAIN status.
@@ -222,7 +222,7 @@ namespace dasa::gliese::scanner {
                              TW_UINT16 DAT,
                              TW_UINT16 MSG,
                              TW_MEMREF pData) {
-            return DSM(getIdentity(), getDataSource(), DG, DAT, MSG, pData);
+            return DSM(getIdentity(), getDataSource() ? getDataSource()->getIdentity() : nullptr, DG, DAT, MSG, pData);
         }
 
         /**
@@ -231,6 +231,8 @@ namespace dasa::gliese::scanner {
         std::shared_ptr<dasa::gliese::scanner::twain::Transfer> getActiveTransfer() {
             return activeTransfer;
         }
+
+        std::tuple<std::list<uint32_t>, std::list<uint32_t>> getDeviceDPIs(twain::Device::TW_ID device);
 
         /**
          * Close the active transfer
@@ -250,8 +252,10 @@ namespace dasa::gliese::scanner {
         int state = 1;
         bool useCallbacks = false;
 
-        std::unique_ptr<TW_IDENTITY> currentDS;
+        std::unique_ptr<dasa::gliese::scanner::twain::Device> currentDS;
         std::shared_ptr<dasa::gliese::scanner::twain::Transfer> activeTransfer;
+
+        std::unique_ptr<twain::Device> make_device(twain::Device::TW_ID id);
 
         static std::map<TW_UINT32, TW_MEMREF> map;
 

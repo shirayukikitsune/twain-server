@@ -19,6 +19,7 @@
 #include "scan.hpp"
 
 #include "../../application.hpp"
+#include "../../twain/error_code.hpp"
 
 #include <chrono>
 #include <loguru.hpp>
@@ -46,6 +47,7 @@ bh::response<bh::dynamic_body> makeErrorResponse(bh::status status, const std::s
     bh::response<bh::dynamic_body> res{ status, request.version() };
     res.set(bh::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(bh::field::content_type, "text/plain");
+    add_cors(request, res);
     res.keep_alive(request.keep_alive());
     boost::beast::ostream(res.body()) << message;
     res.prepare_payload();
@@ -77,6 +79,7 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 #else
 	if (!twain.loadDataSource((TW_UINT32)deviceId)) {
 #endif
+        twain.reset();
 		return makeErrorResponse(bh::status::internal_server_error, "Failed to load DS", request);
 	}
 
@@ -133,8 +136,9 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
     twain.enableDataSource(application->getParentWindow(), false);
 
 	// wait for ready
+    using namespace std::literals;
 	while (twain.getState() != 6) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		std::this_thread::sleep_for(10ms);
 	}
 
 	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
@@ -145,12 +149,17 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 }
 
 bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "POST /scan/prepare");
 	auto response = prepareScan(request);
 	auto& twain = application->getTwain();
 	auto outputMime = (std::string)request[bh::field::accept];
 
 	if (twain.getState() == 6) {
-		twain.startScan(outputMime);
+        auto transfer = twain.startScan(outputMime);
+        if (transfer.expired()) {
+            twain.reset();
+            return makeErrorResponse(bh::status::internal_server_error, "Failed to initialize transfer", request);
+        }
 	}
     add_cors(request, response);
 
@@ -159,8 +168,10 @@ bh::response<bh::dynamic_body> PrepareScanHandler::operator()(bh::request<bh::st
 }
 
 bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "GET /scan/has-next");
     auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
+        application->getTwain().reset();
         return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
     }
 
@@ -178,9 +189,11 @@ bh::response<bh::dynamic_body> HasNextScanHandler::operator()(bh::request<bh::st
 }
 
 bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "GET /scan/prepare-next");
     auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
-		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
+        application->getTwain().reset();
+        return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 
 	bh::response<bh::dynamic_body> response{ bh::status::ok, request.version() };
@@ -208,9 +221,12 @@ bh::response<bh::dynamic_body> NextImageDataScanHandler::operator()(bh::request<
 }
 
 bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "GET /scan/next");
     auto transfer = application->getTwain().getActiveTransfer();
+    auto& twain = application->getTwain();
     if (!transfer) {
-		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
+        twain.reset();
+        return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 	if (!transfer->hasPending()) {
 		bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
@@ -226,7 +242,20 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 
 	auto os = boost::beast::ostream(response.body());
 
-	transfer->transferOne(os);
+    std::error_code ec;
+	transfer->transferOne(os, ec);
+    if (ec) {
+        transfer->clearPending();
+        twain.endTransfer();
+
+        twain.disableDS();
+        twain.closeDS();
+
+        if (ec == twain::error_code::cancelled) {
+            return makeErrorResponse(bh::status::client_closed_request, "User cancelled", request);
+        }
+        return makeErrorResponse(bh::status::internal_server_error, "Failed to transfer", request);
+    }
 	transfer->checkPending();
 
 	response.set("x-has-next", transfer->hasPending());
@@ -236,9 +265,12 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
 }
 
 bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string_body>&& request) {
+    LOG_SCOPE_F(INFO, "POST /scan/end");
     auto transfer = application->getTwain().getActiveTransfer();
     if (!transfer) {
-		return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
+        auto& twain = application->getTwain();
+        twain.reset();
+        return makeErrorResponse(bh::status::precondition_failed, "Transfer not initiated", request);
 	}
 
 	bh::response<bh::dynamic_body> response{ bh::status::no_content, request.version() };
@@ -257,7 +289,8 @@ bh::response<bh::dynamic_body> EndScanHandler::operator()(bh::request<bh::string
 }
 
 bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_body>&& request) {
-	auto response = prepareScan(request);
+    LOG_SCOPE_F(INFO, "POST /scan");
+    auto response = prepareScan(request);
 	auto& twain = application->getTwain();
 
     if (twain.getState() == 6) {
@@ -265,8 +298,12 @@ bh::response<bh::dynamic_body> ScanHandler::operator()(bh::request<bh::string_bo
         add_cors(request, response);
         auto os = boost::beast::ostream(response.body());
         auto transfer = twain.startScan(outputMime);
+        if (transfer.expired()) {
+            twain.reset();
+            return makeErrorResponse(bh::status::internal_server_error, "Failed to start transfer", request);
+        }
         response.set(bh::field::content_type, "image/jpeg");
-		transfer->transferAll(os);
+		transfer.lock()->transferAll(os);
     }
 
     twain.endTransfer();
