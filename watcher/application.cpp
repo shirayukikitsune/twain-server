@@ -22,13 +22,12 @@
 
 #include "process.h"
 
+#include <functional>
 #include <loguru.hpp>
 #include <string>
 #include <thread>
 #include <PathCch.h>
 #include <Windows.h>
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 SERVICE_STATUS service_status;
 SERVICE_STATUS_HANDLE status_handle;
@@ -39,7 +38,8 @@ HANDLE stop_event = nullptr;
 dasa::twain::watcher::process process_watcher;
 bool should_stop;
 
-std::wstring get_current_working_dir() {
+std::wstring get_current_working_dir()
+{
     TCHAR path[MAX_PATH];
 
     if (!GetCurrentDirectory(MAX_PATH, path)) {
@@ -49,17 +49,14 @@ std::wstring get_current_working_dir() {
     return std::wstring(path);
 }
 
-void install_service() {
+std::wstring get_self_filename()
+{
+    using namespace std::literals;
+
     TCHAR path[MAX_PATH];
 
     if (!GetModuleFileName(nullptr, path, MAX_PATH)) {
-        return;
-    }
-
-    auto manager = OpenSCManager(nullptr, nullptr, STANDARD_RIGHTS_REQUIRED | SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE);
-
-    if (manager == nullptr) {
-        return;
+        return L""s;
     }
 
     std::wstring filepath(path);
@@ -67,38 +64,61 @@ void install_service() {
         filepath = L'"' + filepath + L'"';
     }
 
-    filepath += L" " + get_current_working_dir();
+    return filepath;
+}
+
+struct SC_HANDLE_wrapper {
+    SC_HANDLE_wrapper(SC_HANDLE handle) : handle(handle) {}
+    ~SC_HANDLE_wrapper() {
+        if (handle) {
+            CloseServiceHandle(handle);
+        }
+        handle = nullptr;
+    }
+
+    operator SC_HANDLE() {
+        return handle;
+    }
+
+private:
+    SC_HANDLE handle;
+};
+
+SC_HANDLE_wrapper open_sc_manager(DWORD desired_access = SC_MANAGER_ALL_ACCESS)
+{
+    auto manager = OpenSCManager(nullptr, nullptr, desired_access);
+
+    if (!manager) {
+        return nullptr;
+    }
+
+    return manager;
+}
+
+void install_service() {
+    auto manager = open_sc_manager(STANDARD_RIGHTS_REQUIRED | SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE);
+    auto filepath = get_self_filename() + L" " + get_current_working_dir();
 
     auto service = CreateService(manager, SERVICE_NAME, SERVICE_NAME,
         SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
         SERVICE_AUTO_START, SERVICE_ERROR_NORMAL,
         filepath.c_str(), nullptr, nullptr,
         nullptr, nullptr, nullptr);
-    if (service == nullptr) {
-        CloseServiceHandle(manager);
-        return;
-    }
 
-    CloseServiceHandle(service);
-    CloseServiceHandle(manager);
+    if (service != nullptr) {
+        CloseServiceHandle(service);
+    }
 }
 
 void remove_service() {
-    auto manager = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
-    if (!manager) {
-        return;
-    }
-
+    auto manager = open_sc_manager();
     auto service = OpenService(manager, SERVICE_NAME, DELETE);
     if (!service) {
-        CloseServiceHandle(manager);
         return;
     }
 
     DeleteService(service);
-
     CloseServiceHandle(service);
-    CloseServiceHandle(manager);
 }
 
 void report_status(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD dwWaitHint) {
@@ -133,6 +153,17 @@ void WINAPI control_handler(DWORD control_code) {
     }
 }
 
+void watch_child(std::wstring && command_line) {
+    while (!should_stop) {
+        if (!process_watcher.is_alive()) {
+            process_watcher.reset();
+            process_watcher.create_child(command_line);
+        }
+
+        process_watcher.join();
+    }
+}
+
 void WINAPI service_main(DWORD argc, LPTSTR* argv) {
     using namespace std::literals;
 
@@ -154,8 +185,6 @@ void WINAPI service_main(DWORD argc, LPTSTR* argv) {
         return;
     }
 
-    std::this_thread::sleep_for(20s);
-
     wchar_t selfdir[MAX_PATH] = { 0 };
     GetModuleFileNameW(NULL, selfdir, MAX_PATH);
     PathCchRemoveFileSpec(selfdir, MAX_PATH);
@@ -168,14 +197,7 @@ void WINAPI service_main(DWORD argc, LPTSTR* argv) {
     report_status(SERVICE_RUNNING, NO_ERROR, 0);
 
     // Running
-    while (!should_stop) {
-        if (!process_watcher.is_alive()) {
-            process_watcher.reset();
-            process_watcher.create_child(command_line);
-        }
-
-        process_watcher.join();
-    }
+    watch_child(std::move(command_line));
 
     report_status(SERVICE_STOPPED, NO_ERROR, 0);
 }
@@ -204,15 +226,4 @@ int main(int argc, char** argv) {
         return 1;
     }
     return 0;
-}
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg)
-    {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    }
-
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
