@@ -62,14 +62,15 @@ void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listen
     LOG_S(INFO) << "Creating main window";
     
     const wchar_t CLASS_NAME[] = L"Gliese Scanner";
+    auto instance = GetModuleHandle(NULL);
     WNDCLASS wc = {};
     wc.lpfnWndProc = WindowProc;
-    wc.hInstance = GetModuleHandle(NULL);
+    wc.hInstance = instance;
     wc.lpszClassName = CLASS_NAME;
 
     RegisterClass(&wc);
 
-    hwnd = CreateWindowEx(0, CLASS_NAME, L"Gliese Scanner", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, nullptr, nullptr, GetModuleHandle(NULL), nullptr);
+    hwnd = CreateWindowEx(0, CLASS_NAME, L"Gliese Scanner", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, nullptr, nullptr, instance, nullptr);
 
     if (!hwnd) {
         ABORT_S() << "Failed to create main window";
@@ -143,4 +144,15 @@ void Application::run() {
 void Application::stop() {
     PostThreadMessage(myThreadId, WM_QUIT, 0, 0);
     CloseHandle(application_handle);
+}
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch (uMsg)
+    {
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

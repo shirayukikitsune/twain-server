@@ -26,8 +26,6 @@
 #include <loguru.hpp>
 #include <shellapi.h>
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 using dasa::gliese::scanner::windows::Application;
 extern dasa::gliese::scanner::windows::Application *windows_application;
 extern dasa::gliese::scanner::Application *application;
@@ -81,15 +79,4 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     LOG_F(INFO, "Closing TWAIN DSM");
     application->getTwain().closeDSM();
     return 0;
-}
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg)
-    {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    }
-
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
