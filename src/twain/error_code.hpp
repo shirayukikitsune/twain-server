@@ -1,6 +1,6 @@
 /*
     twain-server: This project exposes the TWAIN DSM as a web API
-    Copyright (C) 2019 "Diagnósticos da América S.A. <bruno.f@dasa.com.br>"
+    Copyright (C) 2019 "DiagnÃ³sticos da AmÃ©rica S.A. <bruno.f@dasa.com.br>"
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,11 +19,13 @@
 #pragma once
 
 #include <system_error>
+#include "../external/twain.h"
 
 namespace dasa::gliese::scanner::twain {
     enum class error_code {
-        generic_failure = 1,
-        cancelled,
+        generic_failure = TWRC_FAILURE,
+        cancelled = TWRC_CANCEL,
+        transfer_done = TWRC_XFERDONE,
         invalid_state
     };
 

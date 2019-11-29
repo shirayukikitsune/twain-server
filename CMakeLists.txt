@@ -12,7 +12,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(EnableImageConversion "Enable conversion and compression of image types" ON)
+
 find_package(Boost 1.71.0 REQUIRED date_time filesystem system)
+if (EnableImageConversion)
+  find_package(ImageMagick REQUIRED COMPONENTS Magick++)
+endif()
 
 if (MSVC OR MSYS OR MINGW)
   set(APPLICATION_TYPE "Console" CACHE STRING "The generated application type: Console or Window")

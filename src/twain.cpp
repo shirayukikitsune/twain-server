@@ -20,8 +20,11 @@
 
 #include "twain.hpp"
 
-#include "twain/memory_transfer.hpp"
-#include "twain/native_transfer.hpp"
+#ifdef ENABLE_IMAGE_CONVERSION
+#include "twain/transfer/conversion_transfer.hpp"
+#endif
+#include "twain/transfer/memory_transfer.hpp"
+#include "twain/transfer/native_transfer.hpp"
 
 #include <cstring>
 #include <list>
@@ -501,6 +504,12 @@ std::weak_ptr<dasa::gliese::scanner::twain::Transfer> Twain::startScan(const std
         LOG_S(ERROR) << "Unsupported ICAP_XFERMECH " << mech;
         break;
     }
+
+#ifdef ENABLE_IMAGE_CONVERSION
+    auto conversion_transfer = std::make_shared<twain::conversion_transfer>(this, outputMime);
+    conversion_transfer->set_transfer(activeTransfer);
+    activeTransfer = conversion_transfer;
+#endif
 
     ptr = activeTransfer;
 	return ptr;

@@ -5,11 +5,11 @@ if (MSVC OR MSYS OR MINGW)
     add_executable(twain-server application_windows_console.cpp)
   endif()
     
-  target_sources(twain-server PUBLIC application_windows.cpp application_windows.hpp twain/native_transfer_windows.cpp)
+  target_sources(twain-server PUBLIC application_windows.cpp application_windows.hpp twain/transfer/native_transfer_windows.cpp)
   target_compile_definitions(twain-server PUBLIC UNICODE=1 WIN32_LEAN_AND_MEAN=1)
 else()
-  add_executable(twain-server application_linux.cpp application_linux.hpp 
-          twain/native_transfer_linux.cpp)
+  add_executable(twain-server application_linux.cpp application_linux.hpp
+          twain/transfer/native_transfer_linux.cpp)
   target_link_libraries(twain-server PRIVATE pthread ${FREEIMAGE_LIBRARIES})
 endif()
 
@@ -42,8 +42,9 @@ target_sources(twain-server PUBLIC
         twain/dsm.cpp twain/dsm.hpp
         twain/error_code.cpp twain/error_code.hpp
         twain/transfer.cpp twain/transfer.hpp
-        twain/memory_transfer.cpp twain/memory_transfer.hpp
-        twain/native_transfer.hpp)
+        twain/transfer/conversion_transfer.cpp twain/transfer/conversion_transfer.hpp
+        twain/transfer/memory_transfer.cpp twain/transfer/memory_transfer.hpp
+        twain/transfer/native_transfer.hpp)
 
 target_compile_definitions(twain-server PUBLIC LOGURU_WITH_STREAMS=1)
 target_include_directories(twain-server PUBLIC ${Boost_INCLUDE_DIR} ${FREEIMAGE_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/deps/loguru)
@@ -54,3 +55,9 @@ target_link_libraries(twain-server PRIVATE nlohmann_json::nlohmann_json
     Boost::date_time
     Boost::system
     Boost::filesystem)
+
+if (EnableImageConversion)
+    target_compile_definitions(twain-server PUBLIC ENABLE_IMAGE_CONVERSION=1)
+    target_include_directories(twain-server PUBLIC ${ImageMagick_INCLUDE_DIRS})
+    target_link_libraries(twain-server PRIVATE ${ImageMagick_LIBRARIES})
+endif()

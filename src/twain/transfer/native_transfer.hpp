@@ -16,21 +16,22 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "error_code.hpp"
+#pragma once
 
-namespace dasa::gliese::scanner::twain::detail {
-    std::string twain_category::message(int c) const {
-        switch (static_cast<error_code>(c)) {
-        case error_code::generic_failure:
-            return "generic failure";
-        case error_code::cancelled:
-            return "cancelled";
-        case error_code::transfer_done:
-            return "transfer completed";
-        case error_code::invalid_state:
-            return "invalid state";
-        default:
-            return "unknown error";
-        }
-    }
+#include "../transfer.hpp"
+#include "../../twain.hpp"
+
+#include <ostream>
+
+namespace dasa::gliese::scanner::twain {
+    class NativeTransfer : public Transfer {
+    public:
+        NativeTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
+            : Transfer(twain, std::move(outputMime)) {}
+
+		TW_IMAGEINFO prepare() final;
+		bool transferOne(std::ostream& outputStream) final;
+        std::string getTransferMIME() final;
+        std::string getDefaultMIME() final;
+    };
 }

@@ -22,6 +22,10 @@
 #include <thread>
 
 #include <loguru.hpp>
+#ifdef ENABLE_IMAGE_CONVERSION
+#include <Magick++.h>
+#include <Magick++/ResourceLimits.h>
+#endif
 
 using dasa::gliese::scanner::linux::Application;
 
@@ -78,6 +82,20 @@ void Application::stop() {
 
 int main(int argc, char **argv) {
     loguru::init(argc, argv);
+#ifdef ENABLE_IMAGE_CONVERSION
+    Magick::InitializeMagick(argv[0]);
+    LOG_S(INFO) << "Magick++ limits:";
+    LOG_S(INFO) << " - Width: " << Magick::ResourceLimits::width();
+    LOG_S(INFO) << " - Height: " << Magick::ResourceLimits::height();
+    LOG_S(INFO) << " - List length: " << Magick::ResourceLimits::listLength();
+    LOG_S(INFO) << " - Area: " << Magick::ResourceLimits::area();
+    LOG_S(INFO) << " - Memory: " << Magick::ResourceLimits::memory();
+    LOG_S(INFO) << " - Map: " << Magick::ResourceLimits::map();
+    LOG_S(INFO) << " - Disk: " << Magick::ResourceLimits::disk();
+    LOG_S(INFO) << " - File: " << Magick::ResourceLimits::file();
+    LOG_S(INFO) << " - Thread: " << Magick::ResourceLimits::thread();
+    LOG_S(INFO) << " - Throttle: " << Magick::ResourceLimits::throttle();
+#endif
 
     linux_application = new Application;
     application = linux_application;

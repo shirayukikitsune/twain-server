@@ -18,32 +18,43 @@
 
 #pragma once
 
-#include "transfer.hpp"
-#include "../twain.hpp"
-
-#include <ostream>
+#include <fstream>
+#include <memory>
+#include <utility>
+#include "../transfer.hpp"
 
 namespace dasa::gliese::scanner::twain {
-    class MemoryTransfer : public Transfer {
-    public:
-        MemoryTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
-            : Transfer(twain, std::move(outputMime)) {}
 
-		TW_IMAGEINFO prepare() final;
+    class conversion_transfer : public Transfer {
+    public:
+        conversion_transfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
+        : Transfer(twain, std::move(outputMime)) {}
+
+        void set_transfer(std::shared_ptr<Transfer> transfer) {
+            original_transfer = std::move(transfer);
+        }
+
+        TW_IMAGEINFO prepare() final {
+            return original_transfer->prepare();
+        }
+
         bool transferOne(std::ostream& outputStream) final;
 
         std::string getTransferMIME() final {
-            return getDefaultMIME();
+            return outputMime == "*/*" ? getDefaultMIME() : outputMime;
         }
-
         std::string getDefaultMIME() final {
-            return "image/bmp";
+            return "image/jpeg";
         }
 
     private:
-		TW_IMAGEINFO imageInfo{};
-		TW_SETUPMEMXFER sourceBufferSize{};
-		TW_IMAGEMEMXFER memXferTemplate{};
-		TW_HANDLE buffer = nullptr;
-	};
+        std::shared_ptr<Transfer> original_transfer;
+
+        static bool convert_image(const std::string& from, const std::string& to);
+        static std::string create_temp_file();
+        static std::string get_extension_for_mime(const std::string& mime);
+
+        static void write_file_to_stream(std::ostream &os, const std::string &output_file_name);
+    };
+
 }

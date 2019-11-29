@@ -3,6 +3,8 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/bandit" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/deps/bandit/bandit" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/deps/bandit/bandit/assertion_frameworks/snowhouse" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/json" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/kitsune-ioc" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/kitsune-ioc/test/bandit" vcs="Git" />

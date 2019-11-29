@@ -18,20 +18,36 @@
 
 #pragma once
 
-#include "transfer.hpp"
-#include "../twain.hpp"
+#include "../transfer.hpp"
+#include "../../twain.hpp"
 
 #include <ostream>
 
 namespace dasa::gliese::scanner::twain {
-    class NativeTransfer : public Transfer {
+    class MemoryTransfer : public Transfer {
     public:
-        NativeTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
+        MemoryTransfer(dasa::gliese::scanner::Twain *twain, std::string outputMime)
             : Transfer(twain, std::move(outputMime)) {}
 
 		TW_IMAGEINFO prepare() final;
-		bool transferOne(std::ostream& outputStream) final;
-        std::string getTransferMIME() final;
-        std::string getDefaultMIME() final;
-    };
+        bool transferOne(std::ostream& outputStream) final;
+
+        std::string getTransferMIME() final {
+            return getDefaultMIME();
+        }
+
+        std::string getDefaultMIME() final {
+            return "image/bmp";
+        }
+
+    private:
+		TW_IMAGEINFO imageInfo{};
+		TW_SETUPMEMXFER sourceBufferSize{};
+		TW_IMAGEMEMXFER memXferTemplate{};
+		TW_HANDLE buffer = nullptr;
+
+		bool little_endian = false;
+
+		bool transfer_strip(std::ostream& os, std::error_code& ec);
+	};
 }
