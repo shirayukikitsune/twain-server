@@ -118,12 +118,16 @@ bh::response<bh::dynamic_body> DevicesHandler::operator()(bh::request<bh::string
 bh::response<bh::dynamic_body> DevicesDPIHandler::operator()(bh::request<bh::string_body>&& request) {
     LOG_SCOPE_F(INFO, "GET /devices/dpi");
 	json response;
-	auto device = (twain::Device::TW_ID)strtoll(((std::string)request["x-device"]).c_str(), nullptr, 0);
-	if (!device) {
+	auto device_id = (twain::Device::TW_ID)strtoll(((std::string)request["x-device"]).c_str(), nullptr, 0);
+	if (!device_id) {
         return makeErrorResponse(bh::status::not_found, "device not found", request);
 	}
+	auto device = application->getTwain().make_device(device_id);
+    if (!device) {
+        return makeErrorResponse(bh::status::not_found, "device not found", request);
+    }
 
-    auto dpis = application->getTwain().getDeviceDPIs(device);
+    auto dpis = application->getTwain().getDeviceDPIs(device_id);
     response["x"] = std::get<0>(dpis);
     response["y"] = std::get<1>(dpis);
 

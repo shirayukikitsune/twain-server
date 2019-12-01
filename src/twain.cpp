@@ -545,7 +545,12 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
 
 std::unique_ptr<dasa::gliese::scanner::twain::Device> Twain::make_device(dasa::gliese::scanner::twain::Device::TW_ID id)
 {
-    auto sources = listSources();
+    std::error_code ec;
+    auto sources = listSources(ec);
+    if (ec) {
+        return nullptr;
+    }
+
     for (auto& source : sources) {
         if (source == id) {
             return std::make_unique<twain::Device>(this, *source.getIdentity());

@@ -241,6 +241,13 @@ namespace dasa::gliese::scanner {
 
         void shutdown() noexcept;
 
+        /**
+         * Create a Device by looking for its TWAIN DSM id
+         * @param id The device identifier
+         * @return Empty if the device id was not found, an unique_ptr to a Device if it was
+         */
+        std::unique_ptr<twain::Device> make_device(twain::Device::TW_ID id);
+
     private:
         TW_IDENTITY identity{};
         TW_USERINTERFACE ui{};
@@ -254,8 +261,6 @@ namespace dasa::gliese::scanner {
 
         std::unique_ptr<dasa::gliese::scanner::twain::Device> currentDS;
         std::shared_ptr<dasa::gliese::scanner::twain::Transfer> activeTransfer;
-
-        std::unique_ptr<twain::Device> make_device(twain::Device::TW_ID id);
 
         static std::map<TW_UINT32, TW_MEMREF> map;
 
