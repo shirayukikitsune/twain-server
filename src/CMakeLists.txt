@@ -4,9 +4,9 @@ if (MSVC OR MSYS OR MINGW)
   else ()
     add_executable(twain-server application_windows_console.cpp)
   endif()
-    
+
   target_sources(twain-server PUBLIC application_windows.cpp application_windows.hpp twain/native_transfer_windows.cpp)
-  target_compile_definitions(twain-server PUBLIC UNICODE=1 WIN32_LEAN_AND_MEAN=1)
+  target_compile_definitions(twain-server PUBLIC UNICODE=1 WIN32_LEAN_AND_MEAN=1 _WIN32_WINNT=0x0A00)
 else()
   add_executable(twain-server application_linux.cpp application_linux.hpp 
           twain/native_transfer_linux.cpp)

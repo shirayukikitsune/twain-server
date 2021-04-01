@@ -42,8 +42,5 @@ namespace dasa::gliese::scanner::twain {
 
     private:
 		TW_IMAGEINFO imageInfo{};
-		TW_SETUPMEMXFER sourceBufferSize{};
-		TW_IMAGEMEMXFER memXferTemplate{};
-		TW_HANDLE buffer = nullptr;
 	};
 }

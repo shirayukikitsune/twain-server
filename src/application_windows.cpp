@@ -59,25 +59,7 @@ void Application::initialize(std::shared_ptr<dasa::gliese::scanner::http::Listen
     LOG_S(INFO) << "Loading TWAIN DSM library";
     twain.loadDSM("TWAINDSM.dll");
 
-    LOG_S(INFO) << "Creating main window";
-    
-    const wchar_t CLASS_NAME[] = L"Gliese Scanner";
-    auto instance = GetModuleHandle(NULL);
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = WindowProc;
-    wc.hInstance = instance;
-    wc.lpszClassName = CLASS_NAME;
-
-    RegisterClass(&wc);
-
-    hwnd = CreateWindowEx(0, CLASS_NAME, L"Gliese Scanner", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, nullptr, nullptr, instance, nullptr);
-
-    if (!hwnd) {
-        ABORT_S() << "Failed to create main window";
-        return;
-    }
-
-    ShowWindow(hwnd, SW_HIDE);
+    create_main_window();
 }
 
 void Application::run() {
@@ -96,40 +78,8 @@ void Application::run() {
     while ((result = GetMessage(&msg, NULL, 0, 0)) != 0)
     {
         if (result > 0) {
-            if (twain.getState() > 3) {
-                TW_EVENT twEvent;
-
-                twEvent.pEvent = (TW_MEMREF)&msg;
-                twEvent.TWMessage = MSG_NULL;
-                TW_UINT16  twRC = TWRC_NOTDSEVENT;
-                twRC = twain(DG_CONTROL, DAT_EVENT, MSG_PROCESSEVENT, &twEvent);
-
-                if (!twain.isUsingCallbacks() && twRC == TWRC_DSEVENT) {
-                    // check for message from Source
-                    switch (twEvent.TWMessage)
-                    {
-                    case MSG_XFERREADY:
-                        twain.setState(6);
-                        break;
-                    case MSG_CLOSEDSREQ:
-                    case MSG_CLOSEDSOK:
-                        twain.reset();
-                        break;
-                    case MSG_NULL:
-                        LOG_S(INFO) << "Got message from DSM: " << twEvent.TWMessage;
-                        break;
-                    default:
-                        LOG_S(INFO) << "Got unknown message from DSM: " << twEvent.TWMessage;
-                        break;
-                    }
-
-                    if (twEvent.TWMessage != MSG_NULL) {
-                        continue;
-                    }
-                }
-                if (twRC == TWRC_DSEVENT) {
-                    continue;
-                }
+            if (handle_twain_message(msg)) {
+                continue;
             }
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -144,6 +94,78 @@ void Application::run() {
 void Application::stop() {
     PostThreadMessage(myThreadId, WM_QUIT, 0, 0);
     CloseHandle(application_handle);
+}
+
+std::wstring Application::register_window_class(HINSTANCE instance)
+{
+    using namespace std::literals;
+    static const auto class_name = L"TWAIN-server"s;
+
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = instance;
+    wc.lpszClassName = class_name.c_str();
+
+    RegisterClass(&wc);
+
+    return class_name;
+}
+
+void Application::create_main_window()
+{
+    LOG_S(INFO) << "Creating main window";
+
+    auto instance = GetModuleHandle(NULL);
+    auto class_name = register_window_class(instance);
+
+    hwnd = CreateWindowEx(0, class_name.c_str(), L"Gliese Scanner", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, nullptr, nullptr, instance, nullptr);
+
+    if (!hwnd) {
+        ABORT_S() << "Failed to create main window";
+        return;
+    }
+
+    ShowWindow(hwnd, SW_HIDE);
+}
+
+bool Application::handle_twain_message(MSG &message)
+{
+    if (twain.getState() <= 3) {
+        return false;
+    }
+
+    TW_EVENT twEvent;
+
+    twEvent.pEvent = (TW_MEMREF)&message;
+    twEvent.TWMessage = MSG_NULL;
+    TW_UINT16  twRC = TWRC_NOTDSEVENT;
+    twRC = twain(DG_CONTROL, DAT_EVENT, MSG_PROCESSEVENT, &twEvent);
+
+    if (!twain.isUsingCallbacks() && twRC == TWRC_DSEVENT) {
+        // check for message from Source
+        switch (twEvent.TWMessage)
+        {
+        case MSG_XFERREADY:
+            twain.setState(6);
+            break;
+        case MSG_CLOSEDSREQ:
+        case MSG_CLOSEDSOK:
+            twain.reset();
+            break;
+        case MSG_NULL:
+            LOG_S(INFO) << "Got message from DSM: " << twEvent.TWMessage;
+            break;
+        default:
+            LOG_S(INFO) << "Got unknown message from DSM: " << twEvent.TWMessage;
+            break;
+        }
+
+        if (twEvent.TWMessage != MSG_NULL) {
+            return true;
+        }
+    }
+
+    return twRC == TWRC_DSEVENT;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

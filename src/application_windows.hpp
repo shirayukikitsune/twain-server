@@ -44,6 +44,10 @@ namespace dasa::gliese::scanner::windows
         HWND hwnd = nullptr;
         DWORD myThreadId = 0;
         HANDLE application_handle;
+
+        std::wstring register_window_class(HINSTANCE instance);
+        void create_main_window();
+        bool handle_twain_message(MSG &message);
     };
 
 }

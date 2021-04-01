@@ -27,26 +27,6 @@ TW_IMAGEINFO MemoryTransfer::prepare() {
 	memset(&imageInfo, 0, sizeof(TW_IMAGEINFO));
 	(*twain)(DG_IMAGE, DAT_IMAGEINFO, MSG_GET, reinterpret_cast<TW_MEMREF>(&imageInfo));
 
-	LOG_S(INFO) << "Getting buffer size";
-	memset(&sourceBufferSize, 0, sizeof(TW_SETUPMEMXFER));
-    (*twain)(DG_CONTROL, DAT_SETUPMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&sourceBufferSize));
-
-	auto bufferSize = sourceBufferSize.Preferred;
-
-	LOG_S(INFO) << "Creating memory transfer template (Buffer size of " << bufferSize << " bytes)";
-	memset(&memXferTemplate, 0, sizeof(TW_IMAGEMEMXFER));
-	memXferTemplate.Compression = TWON_DONTCARE16;
-	memXferTemplate.BytesPerRow = TWON_DONTCARE32;
-	memXferTemplate.Columns = TWON_DONTCARE32;
-	memXferTemplate.Rows = TWON_DONTCARE32;
-	memXferTemplate.XOffset = TWON_DONTCARE32;
-	memXferTemplate.YOffset = TWON_DONTCARE32;
-	memXferTemplate.BytesWritten = TWON_DONTCARE32;
-	memXferTemplate.Memory.Flags = TWMF_APPOWNS | TWMF_POINTER;
-	memXferTemplate.Memory.Length = bufferSize;
-
-	twain->setState(7);
-
 	return imageInfo;
 }
 #ifndef _WINDOWS
@@ -80,24 +60,31 @@ typedef struct tagBITMAPFILEHEADER {
 } __attribute__((packed)) BITMAPFILEHEADER;
 #endif
 
-#define BYTES_PERLINE_ALIGN4(width, bpp) (((((int)(width)*(bpp))+31)/32)*4)
+#define BYTES_PERLINE_ALIGN4(width, bpp) (((((width)*(bpp))+31)/32)*4)
 
 BITMAPINFOHEADER make_info_header(const TW_IMAGEINFO& image_info) {
     BITMAPINFOHEADER info_header{ 0 };
 
-    auto bpp = image_info.BitsPerPixel;
-    auto color_count = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
-
     info_header.biSize = sizeof(BITMAPINFOHEADER);
     info_header.biWidth = image_info.ImageWidth;
-    info_header.biHeight = image_info.ImageLength;
+    info_header.biHeight = -image_info.ImageLength;
     info_header.biPlanes = 1;
     info_header.biBitCount = image_info.BitsPerPixel;
     info_header.biCompression = 0;
-    info_header.biXPelsPerMeter = lround(image_info.XResolution.Whole * 39.3700787 + 0.5);
-    info_header.biYPelsPerMeter = lround(image_info.YResolution.Whole * 39.3700787 + 0.5);
-    info_header.biClrUsed = color_count;
-    info_header.biClrImportant = color_count;
+    info_header.biXPelsPerMeter = image_info.XResolution.Whole * 39.37F + 0.5;
+    info_header.biYPelsPerMeter = image_info.YResolution.Whole * 39.37F + 0.5;
+    switch (image_info.PixelType)
+    {
+    case TWPT_RGB:
+        info_header.biClrUsed = 0;
+        break;
+    case TWPT_BW:
+    case TWPT_GRAY:
+    case TWPT_PALETTE:
+        info_header.biClrUsed = 1 << image_info.BitsPerPixel;
+        break;
+    }
+    info_header.biClrImportant = info_header.biClrUsed;
     info_header.biSizeImage = BYTES_PERLINE_ALIGN4(info_header.biWidth, info_header.biBitCount) * info_header.biHeight;
 
     return info_header;
@@ -106,18 +93,30 @@ BITMAPINFOHEADER make_info_header(const TW_IMAGEINFO& image_info) {
 bool MemoryTransfer::transferOne(std::ostream& os) {
 	TW_IMAGEMEMXFER memXferBuffer;
 	TW_UINT16 rc;
+    TW_SETUPMEMXFER sourceBufferSize{0};
+    TW_IMAGEMEMXFER memXferTemplate{0};
 
-	buffer = twain->dsm().alloc(memXferTemplate.Memory.Length);
-	memXferTemplate.Memory.TheMem = twain->dsm().lock(buffer);
+    LOG_S(INFO) << "Getting buffer size";
+    memset(&sourceBufferSize, 0, sizeof(TW_SETUPMEMXFER));
+    (*twain)(DG_CONTROL, DAT_SETUPMEMXFER, MSG_GET, reinterpret_cast<TW_MEMREF>(&sourceBufferSize));
 
-	auto bpp = imageInfo.BitsPerPixel;
-	auto colorCount = bpp == 1 ? 2 : bpp == 8 ? 256 : 0;
-	unsigned paletteSize = sizeof(RGBQUAD) * colorCount;
+    auto bufferSize = sourceBufferSize.Preferred;
+
+    LOG_S(INFO) << "Creating memory transfer template (Buffer size of " << bufferSize << " bytes)";
+
+    std::unique_ptr<std::byte[]> buffer = std::make_unique<std::byte[]>(bufferSize);
+
+    memset(&memXferTemplate, 0, sizeof(TW_IMAGEMEMXFER));
+    memXferTemplate.Memory.Flags = TWMF_APPOWNS | TWMF_POINTER;
+    memXferTemplate.Memory.Length = bufferSize;
+    memXferTemplate.Memory.TheMem = buffer.get();
+
     BITMAPINFOHEADER infoHeader = make_info_header(imageInfo);
+    unsigned paletteSize = sizeof(RGBQUAD) * infoHeader.biClrUsed;
 
     BITMAPFILEHEADER fileHeader{
         0x4d42,
-        (uint32_t)(infoHeader.biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER)),
+        (uint32_t)(infoHeader.biSizeImage + paletteSize + sizeof(BITMAPINFOHEADER) + sizeof(BITMAPFILEHEADER)),
         0,
         0,
         (uint32_t)(sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + paletteSize)
@@ -126,25 +125,50 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
     os.write(reinterpret_cast<char*>(&fileHeader), sizeof(BITMAPFILEHEADER));
     os.write(reinterpret_cast<char*>(&infoHeader), sizeof(BITMAPINFOHEADER));
 
-    if(colorCount==2)
-    {
-        RGBQUAD pPal;
-        pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = 0x00;
-        pPal.rgbReserved = 0x00;
-        os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
+    if (infoHeader.biClrUsed) {
+        auto palette = std::make_unique<RGBQUAD[]>(infoHeader.biClrUsed);
+        memset(palette.get(), 0, sizeof(RGBQUAD) * infoHeader.biClrUsed);
 
-        pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = 0xFF;
-        os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
-    }
-    else if(colorCount==256)
-    {
-        RGBQUAD pPal = {0,0,0,0};
-        for(int iPal = 0; iPal <= 255; iPal++)
-        {
-            pPal.rgbBlue = pPal.rgbGreen = pPal.rgbRed = iPal;
-            os.write(reinterpret_cast<char*>(&pPal), sizeof(RGBQUAD));
+        if (imageInfo.PixelType == TWPT_PALETTE) {
+            TW_PALETTE8 twainPalette{ 0 };
+            rc = (*twain)(DG_IMAGE, DAT_PALETTE8, MSG_GET, reinterpret_cast<TW_MEMREF>(&twainPalette));
+            if (rc != TWRC_SUCCESS) {
+                LOG_S(ERROR) << "Error while transfering palette from DS";
+                buffer = nullptr;
+                return false;
+            }
+
+            if (twainPalette.PaletteType == TWPA_RGB || twainPalette.PaletteType == TWPA_GRAY) {
+                if (infoHeader.biClrUsed != twainPalette.NumColors)
+                {
+                    infoHeader.biClrUsed = twainPalette.NumColors;
+                    palette = std::make_unique<RGBQUAD[]>(infoHeader.biClrUsed);
+                    memset(palette.get(), 0, sizeof(RGBQUAD) * infoHeader.biClrUsed);
+                }
+
+                for (int nIndex = 0; nIndex < twainPalette.NumColors; nIndex++)
+                {
+                    palette[nIndex].rgbRed = twainPalette.Colors[nIndex].Channel1;
+                    palette[nIndex].rgbGreen = twainPalette.Colors[nIndex].Channel2;
+                    palette[nIndex].rgbBlue = twainPalette.Colors[nIndex].Channel3;
+                }
+            }
         }
+        else {
+            int nIncr = 0xFF / (infoHeader.biClrUsed - 1);
+            int nVal = 0;
+            for (int nIndex = 0; nIndex < infoHeader.biClrUsed; nIndex++) {
+                //create the palette
+                nVal = nIndex * nIncr;
+                palette[nIndex].rgbRed = static_cast<uint8_t>(nVal);
+                palette[nIndex].rgbGreen = static_cast<uint8_t>(nVal);
+                palette[nIndex].rgbBlue = static_cast<uint8_t>(nVal);
+            }
+        }
+        os.write(reinterpret_cast<char*>(palette.get()), sizeof(RGBQUAD) * infoHeader.biClrUsed);
     }
+
+    os.flush();
 
 	LOG_S(INFO) << "Starting transfer";
 	while (true) {
@@ -164,15 +188,14 @@ bool MemoryTransfer::transferOne(std::ostream& os) {
 
 		twain->setState(7);
 
-		os.write(reinterpret_cast<char*>(memXferBuffer.Memory.TheMem), memXferBuffer.BytesWritten);
+        os.write(reinterpret_cast<char*>(memXferBuffer.Memory.TheMem), memXferBuffer.BytesWritten);
+        os.flush();
 
 		if (rc == TWRC_XFERDONE) {
 			break;
 		}
 	}
 
-	twain->dsm().unlock(buffer);
-	twain->dsm().free(buffer);
 	buffer = nullptr;
 
     return rc == TWRC_XFERDONE;

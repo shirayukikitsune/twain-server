@@ -130,6 +130,9 @@ void Twain::closeDSM() {
 
 void Twain::setState(int newState)
 {
+    if (state == newState) {
+        return;
+    }
     LOG_F(INFO, "Changing state from %d to %d", state, newState);
     state = newState;
 }
@@ -421,7 +424,7 @@ TW_UINT16 Twain::setCapability(TW_UINT16 capability, int value, TW_UINT16 type) 
 
     returnCode = (*this)(DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
     if (returnCode == TWRC_FAILURE) {
-        LOG_S(ERROR) << "Failed to set capability";
+        LOG_S(ERROR) << "Failed to set capability " << capability;
     }
 
 cleanup:
@@ -532,6 +535,19 @@ TW_INT16 Twain::getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg) {
     TW_UINT16 twrc = (*this)(DG_CONTROL, DAT_CAPABILITY, _msg, reinterpret_cast<TW_MEMREF>(&_cap));
 
     return twrc;
+}
+
+bool Twain::resetAllCapabilities() {
+    TW_INT16 twrc = TWRC_FAILURE;
+    TW_CAPABILITY cap{ CAP_SUPPORTEDCAPS, TWON_DONTCARE16, nullptr };
+
+    twrc = (*this)(DG_CONTROL, DAT_CAPABILITY, MSG_SET, reinterpret_cast<TW_MEMREF>(&cap));
+    if (TWRC_FAILURE == twrc)
+    {
+        LOG_S(ERROR) << "Could not reset all capabilities";
+    }
+
+    return twrc == TWRC_SUCCESS;
 }
 
 std::unique_ptr<dasa::gliese::scanner::twain::Device> Twain::make_device(dasa::gliese::scanner::twain::Device::TW_ID id)

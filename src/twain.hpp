@@ -185,6 +185,7 @@ namespace dasa::gliese::scanner {
         TW_UINT16 setCapability(TW_UINT16 capability, int value, TW_UINT16 type);
 		TW_UINT16 setCapability(TW_UINT16 Cap, const TW_FIX32* _pValue);
         TW_INT16 getCapability(TW_CAPABILITY& _cap, TW_UINT16 _msg = MSG_GET);
+        bool resetAllCapabilities();
 
         std::weak_ptr<dasa::gliese::scanner::twain::Transfer> startScan(const std::string &outputMime);
 

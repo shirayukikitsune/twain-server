@@ -83,6 +83,8 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		return makeErrorResponse(bh::status::internal_server_error, "Failed to load DS", request);
 	}
 
+	twain.resetAllCapabilities();
+
 	auto pixelType = body["pixelType"];
 	if (pixelType.is_string()) {
 		TW_UINT16 twPixelType = TWPT_BW;
@@ -92,6 +94,9 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 		}
 		else if (sPixelType == "gray") {
 			twPixelType = TWPT_GRAY;
+		}
+		else if (sPixelType == "palette") {
+			twPixelType = TWPT_PALETTE;
 		}
 
 		twain.setCapability(ICAP_PIXELTYPE, twPixelType, TWTY_UINT16);
@@ -130,8 +135,9 @@ bh::response<bh::dynamic_body> prepareScan(const bh::request<bh::string_body>& r
 	}
 
 	// Force LSB transfer
-	twain.setCapability(ICAP_BITORDER, TWBO_LSBFIRST, TWTY_UINT16);
+	twain.setCapability(ICAP_BITORDER, TWBO_MSBFIRST, TWTY_UINT16);
 	twain.setCapability(ICAP_BITORDERCODES, TWBO_LSBFIRST, TWTY_UINT16);
+	twain.setCapability(ICAP_UNITS, TWUN_INCHES, TWTY_UINT16);
 
     twain.enableDataSource(application->getParentWindow(), false);
 
@@ -258,7 +264,7 @@ bh::response<bh::dynamic_body> NextScanHandler::operator()(bh::request<bh::strin
     }
 	transfer->checkPending();
 
-	response.set("x-has-next", transfer->hasPending());
+	response.set("x-has-next", std::to_string(transfer->hasPending()));
 
 	response.prepare_payload();
 	return response;
